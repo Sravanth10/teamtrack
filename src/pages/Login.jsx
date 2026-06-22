@@ -2,19 +2,23 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
-import { Compass, Key, Mail, User, ShieldAlert, Loader } from 'lucide-react'
+import { Compass, Key, Mail, User, ShieldAlert, Loader, Eye, EyeOff } from 'lucide-react'
 
 export const Login = () => {
-  const { login, user, loading: authLoading } = useAuth()
+  const { login, resetPassword, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isForgotPassword, setIsForgotPassword] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Redirect to home if user session already exists
   useEffect(() => {
@@ -28,9 +32,39 @@ export const Login = () => {
     setError(null)
     setSuccess(null)
 
-    if (!email || !password) {
-      setError('Please fill in all fields')
+    if (isForgotPassword) {
+      if (!email.trim()) {
+        setError('Please enter your email address')
+        return
+      }
+      setLoading(true)
+      try {
+        const res = await resetPassword(email.trim())
+        if (!res.success) throw new Error(res.error)
+        setSuccess('Password reset link has been sent to your email!')
+        setIsForgotPassword(false)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
       return
+    }
+
+    if (isSignUp) {
+      if (!name.trim() || !email.trim() || !password || !confirmPassword) {
+        setError('Please fill in all fields')
+        return
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match')
+        return
+      }
+    } else {
+      if (!email.trim() || !password) {
+        setError('Please fill in all fields')
+        return
+      }
     }
 
     setLoading(true)
@@ -84,12 +118,18 @@ export const Login = () => {
             <Compass className="h-7 w-7" />
           </div>
           <h2 className="font-sans text-3xl font-extrabold tracking-tight text-white">
-            {isSignUp ? 'Create your Account' : 'Welcome to TeamTrack'}
+            {isForgotPassword 
+              ? 'Reset your Password' 
+              : isSignUp 
+                ? 'Create your Account' 
+                : 'Welcome to TeamTrack'}
           </h2>
           <p className="mt-2 text-sm text-slate-400 font-medium">
-            {isSignUp 
-              ? 'Get started with task monitoring and daily logs.' 
-              : 'Sign in to access your team spaces and task boards.'
+            {isForgotPassword
+              ? 'Enter your email to receive a password reset link.'
+              : isSignUp 
+                ? 'Get started with task monitoring and daily logs.' 
+                : 'Sign in to access your team spaces and task boards.'
             }
           </p>
         </div>
@@ -155,24 +195,86 @@ export const Login = () => {
             </div>
 
             {/* Password Field */}
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
-                  <Key className="h-4 w-4" />
-                </span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
-                  placeholder="••••••••"
-                  required
-                />
+            {!isForgotPassword && (
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Password
+                    </label>
+                    {!isSignUp && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsForgotPassword(true)
+                          setError(null)
+                          setSuccess(null)
+                        }}
+                        className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition"
+                      >
+                        Forgot Password?
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+                      <Key className="h-4 w-4" />
+                    </span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-11 pr-11 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-500 hover:text-white transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4.5 w-4.5" />
+                      ) : (
+                        <Eye className="h-4.5 w-4.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {isSignUp && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Confirm Password
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+                        <Key className="h-4 w-4" />
+                      </span>
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-11 pr-11 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-500 hover:text-white transition-colors"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4.5 w-4.5" />
+                        ) : (
+                          <Eye className="h-4.5 w-4.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Action button */}
@@ -185,7 +287,9 @@ export const Login = () => {
               {loading ? (
                 <Loader className="h-5 w-5 animate-spin" />
               ) : (
-                isSignUp ? 'Create Account' : 'Sign In'
+                isForgotPassword
+                  ? 'Send Reset Link'
+                  : isSignUp ? 'Create Account' : 'Sign In'
               )}
             </button>
           </div>
@@ -193,19 +297,34 @@ export const Login = () => {
 
         {/* Toggle between Login and Register */}
         <div className="text-center pt-2">
-          <button
-            onClick={() => {
-              setIsSignUp(!isSignUp)
-              setError(null)
-              setSuccess(null)
-            }}
-            className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition"
-          >
-            {isSignUp 
-              ? 'Already have an account? Sign In' 
-              : "Don't have an account? Sign Up"
-            }
-          </button>
+          {isForgotPassword ? (
+            <button
+              onClick={() => {
+                setIsForgotPassword(false)
+                setError(null)
+                setSuccess(null)
+              }}
+              className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition"
+            >
+              Back to Sign In
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp)
+                setConfirmPassword('')
+                setShowConfirmPassword(false)
+                setError(null)
+                setSuccess(null)
+              }}
+              className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition"
+            >
+              {isSignUp 
+                ? 'Already have an account? Sign In' 
+                : "Don't have an account? Sign Up"
+              }
+            </button>
+          )}
         </div>
       </div>
     </div>

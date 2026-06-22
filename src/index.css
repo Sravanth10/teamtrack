@@ -46,3 +46,14 @@ body {
 .animate-shake {
   animation: shake 0.4s ease-in-out;
 }
+
+/* Color calendar picker indicators for dark inputs */
+::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.9);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px;
+}
+::-webkit-calendar-picker-indicator:hover {
+  background: rgba(255, 255, 255, 0.1);
+}

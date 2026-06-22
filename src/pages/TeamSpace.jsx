@@ -17,13 +17,14 @@ import {
   Loader,
   X,
   Bookmark,
-  Calendar
+  Calendar,
+  Trash2
 } from 'lucide-react'
 
 export const TeamSpace = () => {
   const { teamId } = useParams()
   const navigate = useNavigate()
-  const { profile } = useAuth()
+  const { profile, loading: authLoading } = useAuth()
 
   const [team, setTeam] = useState(null)
   const [tasks, setTasks] = useState([])
@@ -41,6 +42,7 @@ export const TeamSpace = () => {
   // Create Task Form States
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
+  const [newTaskDate, setNewTaskDate] = useState(new Date().toISOString().split('T')[0])
   const [isSubmittingTask, setIsSubmittingTask] = useState(false)
 
   // Leave Form States
@@ -137,6 +139,12 @@ export const TeamSpace = () => {
     }
   }, [profile, fetchData])
 
+  useEffect(() => {
+    if (!authLoading && !profile) {
+      navigate('/')
+    }
+  }, [profile, authLoading, navigate])
+
   const handleUpdateStatus = async (taskId, newStatus) => {
     try {
       const { error: updateErr } = await supabase
@@ -168,6 +176,28 @@ export const TeamSpace = () => {
     setIsSubmittingTask(true)
     setError(null)
     try {
+      // Validate: Member cannot choose a futuristic date
+      const todayStr = new Date().toISOString().split('T')[0]
+      if (profile.role === 'member' && newTaskDate > todayStr) {
+        throw new Error('Team members cannot record tasks for future dates.')
+      }
+
+      // Midnight adjustment to prevent timezone offsets
+      const taskDateObj = new Date(newTaskDate)
+      taskDateObj.setHours(12, 0, 0, 0)
+      const taskDateStr = taskDateObj.toDateString()
+
+      // Validate: Member cannot report tasks on a leave day
+      const isLeaveOnSelectedDate = tasks.some(t => 
+        t.title === 'Leave' && 
+        new Date(t.created_at).toDateString() === taskDateStr &&
+        t.created_by === profile.id
+      )
+
+      if (profile.role === 'member' && isLeaveOnSelectedDate) {
+        throw new Error(`You cannot record tasks for ${newTaskDate} because you have a reported leave on that day.`)
+      }
+
       const { error: insertErr } = await supabase
         .from('tasks')
         .insert({
@@ -175,13 +205,15 @@ export const TeamSpace = () => {
           title: newTitle.trim(),
           description: newDescription.trim(),
           status: 'To Do',
-          created_by: profile.id
+          created_by: profile.id,
+          created_at: taskDateObj.toISOString()
         })
 
       if (insertErr) throw insertErr
 
       setNewTitle('')
       setNewDescription('')
+      setNewTaskDate(new Date().toISOString().split('T')[0])
       setIsCreateModalOpen(false)
       fetchData()
     } catch (err) {
@@ -223,6 +255,22 @@ export const TeamSpace = () => {
       setError(err.message)
     } finally {
       setIsSubmittingLeave(false)
+    }
+  }
+
+  const handleCancelLeave = async (leaveId) => {
+    if (!window.confirm('Are you sure you want to cancel this leave?')) return
+    try {
+      const { error: deleteErr } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', leaveId)
+
+      if (deleteErr) throw deleteErr
+      
+      fetchData()
+    } catch (err) {
+      setError(err.message)
     }
   }
 
@@ -461,24 +509,38 @@ export const TeamSpace = () => {
                     No leaves reported in this space.
                   </p>
                 ) : (
-                  tasks.filter(t => t.title === 'Leave').map((leave) => (
-                    <div key={leave.id} className="rounded-xl border border-dark-800 bg-dark-950/40 p-3 space-y-1">
-                      <div className="flex justify-between items-center text-[10px]">
-                        <span className="font-semibold text-slate-350 truncate max-w-[120px]">
-                          {leave.users?.name || leave.users?.email || 'Unknown'}
-                        </span>
-                        <span className="text-brand-400 font-medium">
-                          {new Date(leave.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </span>
+                  tasks.filter(t => t.title === 'Leave').map((leave) => {
+                    const canCancel = profile && (profile.role === 'admin' || leave.created_by === profile.id);
+                    return (
+                      <div key={leave.id} className="rounded-xl border border-dark-800 bg-dark-950/40 p-3 space-y-1">
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="font-semibold text-slate-350 truncate max-w-[120px]">
+                            {leave.users?.name || leave.users?.email || 'Unknown'}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-brand-400 font-medium">
+                              {new Date(leave.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                            {canCancel && (
+                              <button
+                                onClick={() => handleCancelLeave(leave.id)}
+                                className="text-slate-500 hover:text-rose-400 transition-colors p-0.5 rounded hover:bg-dark-900"
+                                title="Cancel Leave"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-400 line-clamp-2">
+                          {leave.description}
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-400 line-clamp-2">
-                        {leave.description}
-                      </p>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>
@@ -522,6 +584,29 @@ export const TeamSpace = () => {
             </div>
 
             <form onSubmit={handleCreateTask} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Task Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={newTaskDate}
+                    onChange={(e) => setNewTaskDate(e.target.value)}
+                    max={profile?.role === 'member' ? new Date().toISOString().split('T')[0] : undefined}
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none"
+                    required
+                  />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <span className="text-[10px] text-slate-500 mb-1.5 italic">
+                    {profile?.role === 'member' 
+                      ? '* Future dates disabled for members.' 
+                      : '* Leads can plan future tasks.'}
+                  </span>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                   Task Title *

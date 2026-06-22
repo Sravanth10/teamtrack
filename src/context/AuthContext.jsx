@@ -7,7 +7,9 @@ export const AuthContext = createContext({
   loading: true,
   login: async () => {},
   logout: async () => {},
-  refreshProfile: async () => {}
+  refreshProfile: async () => {},
+  resetPassword: async () => {},
+  updatePassword: async () => {}
 })
 
 export const AuthProvider = ({ children }) => {
@@ -97,6 +99,38 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  const resetPassword = async (email) => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      if (error) throw error
+      return { success: true, data }
+    } catch (error) {
+      setLoading(false)
+      return { success: false, error: error.message }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updatePassword = async (newPassword) => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+      if (error) throw error
+      return { success: true, data }
+    } catch (error) {
+      setLoading(false)
+      return { success: false, error: error.message }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const logout = async () => {
     setLoading(true)
     try {
@@ -117,7 +151,9 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     logout,
-    refreshProfile
+    refreshProfile,
+    resetPassword,
+    updatePassword
   }
 
   return (

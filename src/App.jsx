@@ -4,13 +4,14 @@ import { AuthProvider } from './context/AuthContext'
 import { useAuth } from './hooks/useAuth'
 import { supabase } from './lib/supabaseClient'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import AdminDashboard from './pages/AdminDashboard'
 import TeamSpace from './pages/TeamSpace'
 import { Loader, AlertCircle } from 'lucide-react'
 
 // 1. Root redirector that inspects user session + role and sends them to the appropriate dashboard
 const RootRedirector = () => {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, logout } = useAuth()
   const [redirectPath, setRedirectPath] = useState(null)
   const [checkingMembership, setCheckingMembership] = useState(false)
 
@@ -42,8 +43,13 @@ const RootRedirector = () => {
             setCheckingMembership(false)
           })
       }
+    } else {
+      // If user exists but profile is missing, clean up session
+      logout().then(() => {
+        setRedirectPath('/login')
+      })
     }
-  }, [user, profile, loading])
+  }, [user, profile, loading, logout])
 
   if (loading || checkingMembership) {
     return (
@@ -142,6 +148,7 @@ function App() {
         <Routes>
           {/* Public login/register page */}
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Special view for unassigned members */}
           <Route 

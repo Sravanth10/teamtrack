@@ -11,6 +11,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
   const [status, setStatus] = useState(task.status)
   const [notes, setNotes] = useState([])
   const [newNote, setNewNote] = useState('')
+  const [taskDate, setTaskDate] = useState(new Date().toISOString().split('T')[0])
   const [isSubmittingNote, setIsSubmittingNote] = useState(false)
   const [isSavingTask, setIsSavingTask] = useState(false)
   const [error, setError] = useState(null)
@@ -20,6 +21,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       setTitle(task.title)
       setDescription(task.description || '')
       setStatus(task.status)
+      setTaskDate(task.created_at ? new Date(task.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
       setIsEditing(false)
       setError(null)
       fetchNotes()
@@ -61,12 +63,45 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
     setIsSavingTask(true)
     setError(null)
     try {
+      // Validate: Member cannot choose a futuristic date
+      const todayStr = new Date().toISOString().split('T')[0]
+      if (profile.role === 'member' && taskDate > todayStr) {
+        throw new Error('Team members cannot record tasks for future dates.')
+      }
+
+      // Check for leave on the selected date
+      if (profile.role === 'member') {
+        const taskDateObj = new Date(taskDate)
+        taskDateObj.setHours(12, 0, 0, 0)
+        const taskDateStr = taskDateObj.toDateString()
+
+        const { data: leaves, error: leaveErr } = await supabase
+          .from('tasks')
+          .select('created_at')
+          .eq('title', 'Leave')
+          .eq('created_by', profile.id)
+        
+        if (leaveErr) throw leaveErr
+
+        const hasLeaveOnSelectedDate = leaves && leaves.some(l => 
+          new Date(l.created_at).toDateString() === taskDateStr
+        )
+
+        if (hasLeaveOnSelectedDate) {
+          throw new Error(`You cannot set the task date to ${taskDate} because you have a reported leave on that day.`)
+        }
+      }
+
+      const taskDateObj = new Date(taskDate)
+      taskDateObj.setHours(12, 0, 0, 0)
+
       const { error: updateError } = await supabase
         .from('tasks')
         .update({
           title: title.trim(),
           description: description.trim(),
           status,
+          created_at: taskDateObj.toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('id', task.id)
@@ -215,6 +250,19 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                     <option value="Done">Done</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Task Date
+                  </label>
+                  <input
+                    type="date"
+                    value={taskDate}
+                    onChange={(e) => setTaskDate(e.target.value)}
+                    max={profile?.role === 'member' ? new Date().toISOString().split('T')[0] : undefined}
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-white focus:border-brand-500 focus:outline-none"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
@@ -242,8 +290,12 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                   <h3 className="font-sans text-xl font-bold text-white leading-snug">
                     {task.title}
                   </h3>
-                  <span className="text-xs text-slate-500">
-                    Created by {task.users?.name || task.users?.email || 'Unknown'}
+                  <span className="text-xs text-slate-500 block mt-1">
+                    Created by {task.users?.name || task.users?.email || 'Unknown'} on {new Date(task.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
                   </span>
                 </div>
                 
