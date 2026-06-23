@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
-import { Compass, Key, ShieldAlert, Loader, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { Compass, Key, ShieldAlert, Loader, Eye, EyeOff, CheckCircle2, Sun, Moon } from 'lucide-react'
 
 export const ResetPassword = () => {
   const { updatePassword, user, loading: authLoading } = useAuth()
@@ -15,6 +15,18 @@ export const ResetPassword = () => {
   
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(newTheme)
+    localStorage.setItem('theme', newTheme)
+    if (newTheme === 'light') {
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+    }
+  }
 
   // Redirect to home if user session does not exist (meaning they didn't access via email link or aren't logged in)
   useEffect(() => {
@@ -65,6 +77,18 @@ export const ResetPassword = () => {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-dark-950 px-4 py-12 sm:px-6 lg:px-8">
+      {/* Floating Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-dark-800 bg-dark-900/60 text-slate-350 backdrop-blur-md transition hover:bg-dark-800 hover:text-white"
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+        >
+          {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-indigo-400" />}
+        </button>
+      </div>
+
       {/* Decorative Blur Orbs */}
       <div className="absolute top-1/4 left-1/4 h-[300px] w-[300px] rounded-full bg-brand-500/10 blur-[100px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 h-[300px] w-[300px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />

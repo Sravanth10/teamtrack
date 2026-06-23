@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
@@ -27,11 +28,25 @@ export default {
           400: '#94a3b8',
           500: '#64748b',
           600: '#475569',
+          700: 'rgb(var(--color-border-focus) / <alpha-value>)',
+          800: 'rgb(var(--color-border) / <alpha-value>)',
+          900: 'rgb(var(--color-card) / <alpha-value>)',
+          950: 'rgb(var(--color-bg) / <alpha-value>)',
+        },
+        slate: {
+          50: '#f8fafc',
+          100: 'rgb(var(--color-text-primary) / <alpha-value>)',
+          200: 'rgb(var(--color-text-secondary) / <alpha-value>)',
+          300: 'rgb(var(--color-text-muted) / <alpha-value>)',
+          400: 'rgb(var(--color-text-muted-more) / <alpha-value>)',
+          500: 'rgb(var(--color-text-placeholder) / <alpha-value>)',
+          600: '#475569',
           700: '#334155',
           800: '#1e293b',
           900: '#0f172a',
-          950: '#020617', // Dark Mode Base Background
-        }
+          950: '#020617',
+        },
+        white: 'rgb(var(--color-white) / <alpha-value>)',
       },
       fontFamily: {
         sans: ['Outfit', 'Inter', 'sans-serif'],

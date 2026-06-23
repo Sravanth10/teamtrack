@@ -1,9 +1,21 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { LogOut, User, Compass } from 'lucide-react'
+import { LogOut, User, Compass, Sun, Moon } from 'lucide-react'
 
 export const Navbar = () => {
   const { profile, logout } = useAuth()
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(newTheme)
+    localStorage.setItem('theme', newTheme)
+    if (newTheme === 'light') {
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+    }
+  }
 
   return (
     <nav className="sticky top-0 z-40 w-full border-b border-dark-800 bg-dark-950/80 backdrop-blur-md">
@@ -40,6 +52,15 @@ export const Navbar = () => {
               }`}>
                 {profile.role === 'admin' ? 'Lead Admin' : 'Team Member'}
               </span>
+
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="flex items-center justify-center h-9 w-9 rounded-lg bg-dark-900 border border-dark-700 text-slate-350 transition-all duration-200 hover:bg-dark-800 hover:text-white hover:border-slate-500 focus:outline-none"
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {theme === 'dark' ? <Sun className="h-4.5 w-4.5 text-amber-400" /> : <Moon className="h-4.5 w-4.5 text-indigo-400" />}
+              </button>
 
               {/* Logout Button */}
               <button
