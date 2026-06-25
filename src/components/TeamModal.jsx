@@ -180,7 +180,7 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto">
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity" 
@@ -188,7 +188,7 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
       />
 
       {/* Modal Container */}
-      <div className="relative z-10 w-full max-w-xl transform overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl transition-all flex flex-col max-h-[85vh]">
+      <div className="relative z-10 w-full max-w-xl rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl flex flex-col max-h-[90vh] my-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-dark-800 px-6 py-4">

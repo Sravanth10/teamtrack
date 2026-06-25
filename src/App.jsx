@@ -7,9 +7,11 @@ import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 import AdminDashboard from './pages/AdminDashboard'
 import TeamSpace from './pages/TeamSpace'
-import { Loader, AlertCircle } from 'lucide-react'
+import VerifyOTP from './pages/VerifyOTP'
+import Navbar from './components/Navbar'
+import { Loader, AlertCircle, ShieldAlert, CheckCircle, Clock } from 'lucide-react'
 
-// 1. Root redirector that inspects user session + role and sends them to the appropriate dashboard
+// 1. Root redirector that inspects user session, role, approval status, and TOTP status and sends them to the appropriate dashboard
 const RootRedirector = () => {
   const { user, profile, loading, logout } = useAuth()
   const [redirectPath, setRedirectPath] = useState(null)
@@ -24,6 +26,23 @@ const RootRedirector = () => {
     }
 
     if (profile) {
+      // Step 1: Check approval status
+      if (profile.approved_status === 'pending') {
+        setRedirectPath('/pending-approval')
+        return
+      }
+      if (profile.approved_status === 'rejected') {
+        setRedirectPath('/rejected')
+        return
+      }
+
+      // Step 2: Check TOTP session validation
+      if (profile.totp_secret && sessionStorage.getItem('totp_verified_' + user.id) !== 'true') {
+        setRedirectPath('/verify-otp')
+        return
+      }
+
+      // Step 3: Handle role redirection
       if (profile.role === 'admin') {
         setRedirectPath('/admin')
       } else {
@@ -66,8 +85,8 @@ const RootRedirector = () => {
   return null
 }
 
-// 2. Protected Route for both Admin and Members (User must be logged in)
-const ProtectedRoute = ({ children }) => {
+// 2. Basic Protected Route that only enforces authentication (to prevent redirect loops on pending/rejected views)
+const BasicProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth()
 
   if (loading) {
@@ -85,7 +104,38 @@ const ProtectedRoute = ({ children }) => {
   return children
 }
 
-// 3. Admin Protected Route (User must be logged in AND have role = admin)
+// 3. Protected Route for both Admin and Members (User must be logged in, approved, and verified)
+const ProtectedRoute = ({ children }) => {
+  const { user, profile, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-950 flex justify-center items-center">
+        <Loader className="h-10 w-10 text-brand-500 animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (profile) {
+    if (profile.approved_status === 'pending') {
+      return <Navigate to="/pending-approval" replace />
+    }
+    if (profile.approved_status === 'rejected') {
+      return <Navigate to="/rejected" replace />
+    }
+    if (profile.totp_secret && sessionStorage.getItem('totp_verified_' + user.id) !== 'true') {
+      return <Navigate to="/verify-otp" replace />
+    }
+  }
+
+  return children
+}
+
+// 4. Admin Protected Route (User must be logged in, approved, verified, AND have role = admin)
 const AdminRoute = ({ children }) => {
   const { user, profile, loading } = useAuth()
 
@@ -101,14 +151,25 @@ const AdminRoute = ({ children }) => {
     return <Navigate to="/login" replace />
   }
 
-  if (!profile || profile.role !== 'admin') {
-    return <Navigate to="/" replace />
+  if (profile) {
+    if (profile.approved_status === 'pending') {
+      return <Navigate to="/pending-approval" replace />
+    }
+    if (profile.approved_status === 'rejected') {
+      return <Navigate to="/rejected" replace />
+    }
+    if (profile.totp_secret && sessionStorage.getItem('totp_verified_' + user.id) !== 'true') {
+      return <Navigate to="/verify-otp" replace />
+    }
+    if (profile.role !== 'admin') {
+      return <Navigate to="/" replace />
+    }
   }
 
   return children
 }
 
-// 4. Fallback view for members who signed up but are not yet added to any team space
+// 5. Fallback view for members who signed up but are not yet added to any team space
 const NoTeamView = () => {
   const { logout, profile } = useAuth()
 
@@ -134,9 +195,126 @@ const NoTeamView = () => {
           {profile?.email}
         </div>
         <p className="text-xs text-slate-500 italic">
-          Once your admin adds you, log out and sign back in to access your space.
+          Once your admin adds you, refresh the page to access your space.
         </p>
       </div>
+    </div>
+  )
+}
+
+// 6. Pending Approval Fallback View
+const PendingApprovalView = () => {
+  const { profile } = useAuth()
+
+  return (
+    <div className="min-h-screen bg-dark-950 flex flex-col text-slate-200">
+      <Navbar />
+      
+      <main className="flex-1 flex flex-col justify-center items-center p-6 text-center max-w-2xl mx-auto space-y-6">
+        <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-500 shadow-glow-brand animate-pulse">
+          <Clock className="h-10 w-10" />
+        </div>
+        
+        <div className="space-y-2">
+          <h2 className="text-2xl font-extrabold text-white tracking-tight">Registration Pending Approval</h2>
+          <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
+            Your profile details have been submitted. A system administrator must approve your account and assign your team workspace before you can access the application.
+          </p>
+        </div>
+
+        {/* User Submitted Profile Details Card */}
+        {profile && (
+          <div className="w-full rounded-2xl border border-dark-800 bg-dark-900/60 p-6 text-left space-y-4 backdrop-blur-xl">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-dark-800 pb-2">
+              Submitted Profile Details
+            </h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-xs text-slate-500 block">Name</span>
+                <span className="text-slate-200 font-semibold">{profile.name}</span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500 block">Email Address</span>
+                <span className="text-slate-200 font-semibold font-mono">{profile.email}</span>
+              </div>
+              <div className="sm:col-span-2">
+                <span className="text-xs text-slate-505 block">Professional Experience</span>
+                <span className="text-slate-200 font-medium">{profile.experience || 'Not specified'}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t border-dark-800/60">
+              <span className="text-xs text-slate-505 block">Technical Skills</span>
+              <div className="flex flex-wrap gap-1.5">
+                {profile.skills && profile.skills.length > 0 ? (
+                  profile.skills.map((skill) => (
+                    <span 
+                      key={skill}
+                      className="inline-flex rounded bg-dark-950 border border-dark-800 px-2.5 py-0.75 text-xs text-slate-350 font-medium"
+                    >
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-600 italic">No skills selected.</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-slate-500 italic">
+          Tip: You can refresh this page once your Admin approves you, or Sign Out from the navbar above.
+        </p>
+      </main>
+    </div>
+  )
+}
+
+// 7. Rejected Fallback View
+const RejectedView = () => {
+  const { profile } = useAuth()
+
+  return (
+    <div className="min-h-screen bg-dark-950 flex flex-col text-slate-200">
+      <Navbar />
+      
+      <main className="flex-1 flex flex-col justify-center items-center p-6 text-center max-w-2xl mx-auto space-y-6">
+        <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-500 shadow-glow-brand">
+          <ShieldAlert className="h-10 w-10 animate-bounce" />
+        </div>
+        
+        <div className="space-y-2">
+          <h2 className="text-2xl font-extrabold text-white tracking-tight">Registration Declined</h2>
+          <p className="text-sm text-slate-400 leading-relaxed max-w-md mx-auto">
+            Unfortunately, your registration request has been declined by the system administrator.
+          </p>
+        </div>
+
+        {profile && (
+          <div className="w-full rounded-2xl border border-dark-800 bg-dark-900/60 p-6 text-left space-y-4 backdrop-blur-xl opacity-75">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-rose-400 border-b border-dark-800 pb-2">
+              Declined Profile Request
+            </h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-xs text-slate-500 block">Name</span>
+                <span className="text-slate-300 font-semibold">{profile.name}</span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500 block">Email Address</span>
+                <span className="text-slate-300 font-semibold font-mono">{profile.email}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-slate-500 italic">
+          Please contact your coordinator if you believe this was an error.
+        </p>
+      </main>
     </div>
   )
 }
@@ -149,6 +327,27 @@ function App() {
           {/* Public login/register page */}
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+
+          {/* Secure TOTP screen */}
+          <Route path="/verify-otp" element={<VerifyOTP />} />
+
+          {/* Special view for pending and rejected registrations */}
+          <Route 
+            path="/pending-approval" 
+            element={
+              <BasicProtectedRoute>
+                <PendingApprovalView />
+              </BasicProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/rejected" 
+            element={
+              <BasicProtectedRoute>
+                <RejectedView />
+              </BasicProtectedRoute>
+            } 
+          />
 
           {/* Special view for unassigned members */}
           <Route 

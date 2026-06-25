@@ -163,7 +163,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto">
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm transition-opacity" 
@@ -171,7 +171,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       />
 
       {/* Modal Card */}
-      <div className="relative z-10 w-full max-w-2xl transform overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl transition-all flex flex-col max-h-[90vh]">
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl flex flex-col max-h-[90vh] my-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-dark-800 px-6 py-4">
@@ -184,7 +184,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
             }`}>
               {status}
             </span>
-            <span className="text-xs text-slate-500 flex items-center gap-1">
+            <span className="text-xs text-slate-505 flex items-center gap-1">
               <Clock className="h-3 w-3" />
               Task Details
             </span>
@@ -301,22 +301,22 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                 
                 {/* Control Action Buttons */}
                 {!isReadOnly && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-1 rounded-lg border border-dark-700 bg-dark-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-dark-800 hover:text-white transition"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={handleDeleteTask}
-                      className="flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 hover:text-rose-200 transition"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete
-                    </button>
-                  </div>
+                   <div className="flex items-center gap-2">
+                     <button
+                       onClick={() => setIsEditing(true)}
+                       className="flex items-center gap-1 rounded-lg border border-dark-700 bg-dark-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-dark-800 hover:text-white transition"
+                     >
+                       <Edit2 className="h-3.5 w-3.5" />
+                       Edit
+                     </button>
+                     <button
+                       onClick={handleDeleteTask}
+                       className="flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 hover:text-rose-200 transition"
+                     >
+                       <Trash2 className="h-3.5 w-3.5" />
+                       Delete
+                     </button>
+                   </div>
                 )}
               </div>
 
@@ -359,7 +359,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                   <button
                     type="submit"
                     disabled={isSubmittingNote || !newNote.trim()}
-                    className="flex items-center justify-center rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs px-4 h-12 transition-all disabled:opacity-50 disabled:hover:bg-brand-500"
+                    className="flex items-center justify-center rounded-lg bg-brand-500 hover:bg-brand-650 text-white font-semibold text-xs px-4 h-12 transition-all disabled:opacity-50 disabled:hover:bg-brand-500"
                   >
                     {isSubmittingNote ? 'Adding...' : (
                       <>
