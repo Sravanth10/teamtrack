@@ -69,15 +69,17 @@ export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className={`group relative flex flex-col justify-between rounded-xl border p-5 transition-all duration-300 hover:-translate-y-1 hover:border-brand-500/30 hover:shadow-glass-hover ${currentStyle.border} border-l-4 cursor-pointer ${
+      className={`group relative flex flex-col justify-between rounded-xl border bg-dark-900 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-brand-500/30 hover:shadow-glass-hover ${currentStyle.border} border-l-4 cursor-pointer ${
         isOverdue 
-          ? 'border-red-500/40 bg-red-950/5 shadow-[0_0_12px_rgba(239,68,68,0.12)]' 
-          : 'border-dark-800 bg-dark-900 shadow-glass'
+          ? 'border-red-500/35 shadow-[0_0_8px_rgba(239,68,68,0.08)]' 
+          : 'border-dark-800 shadow-glass'
       }`}
     >
       <div>
         <div className="flex items-start justify-between gap-2 mb-2">
-          <h4 className="font-sans text-base font-bold text-white transition-colors group-hover:text-brand-300 line-clamp-2">
+          <h4 className={`font-sans text-base font-bold transition-colors line-clamp-2 ${
+            isOverdue ? 'text-red-400 group-hover:text-red-300' : 'text-white group-hover:text-brand-300'
+          }`}>
             {title}
           </h4>
           <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${currentStyle.badge}`}>
@@ -86,11 +88,11 @@ export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
         </div>
 
         {description ? (
-          <p className="font-sans text-sm text-slate-400 line-clamp-3 mb-4 leading-relaxed">
+          <p className={`font-sans text-sm line-clamp-3 mb-4 leading-relaxed ${isOverdue ? 'text-red-500 font-semibold' : 'text-slate-400'}`}>
             {description}
           </p>
         ) : (
-          <p className="font-sans text-sm text-slate-600 italic mb-4">
+          <p className={`font-sans text-sm italic mb-4 ${isOverdue ? 'text-red-500/60 font-semibold' : 'text-slate-650'}`}>
             No description provided.
           </p>
         )}

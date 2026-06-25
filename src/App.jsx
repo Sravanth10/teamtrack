@@ -8,6 +8,7 @@ import ResetPassword from './pages/ResetPassword'
 import AdminDashboard from './pages/AdminDashboard'
 import TeamSpace from './pages/TeamSpace'
 import VerifyOTP from './pages/VerifyOTP'
+import TasksArchive from './pages/TasksArchive'
 import Navbar from './components/Navbar'
 import { Loader, AlertCircle, ShieldAlert, CheckCircle, Clock } from 'lucide-react'
 
@@ -238,9 +239,21 @@ const PendingApprovalView = () => {
                 <span className="text-xs text-slate-500 block">Email Address</span>
                 <span className="text-slate-200 font-semibold font-mono">{profile.email}</span>
               </div>
-              <div className="sm:col-span-2">
-                <span className="text-xs text-slate-505 block">Professional Experience</span>
-                <span className="text-slate-200 font-medium">{profile.experience || 'Not specified'}</span>
+              <div>
+                <span className="text-xs text-slate-505 block">Employee ID</span>
+                <span className="text-slate-200 font-semibold">{profile.employee_id || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-505 block">Work Location</span>
+                <span className="text-slate-200 font-semibold">{profile.work_location || 'N/A'}</span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-505 block">TCS Experience</span>
+                <span className="text-slate-200 font-medium">{profile.tcs_experience || 'N/A'} <span className="text-slate-500 text-[10px]">({profile.tcs_joining_date || 'N/A'})</span></span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-505 block">Rapid Build Experience</span>
+                <span className="text-slate-200 font-medium">{profile.rapid_experience || 'N/A'} <span className="text-slate-500 text-[10px]">({profile.rapid_joining_date || 'N/A'})</span></span>
               </div>
             </div>
 
@@ -375,6 +388,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <TeamSpace />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Tasks Category Archive */}
+          <Route 
+            path="/team/:teamId/archive/:category" 
+            element={
+              <ProtectedRoute>
+                <TasksArchive />
               </ProtectedRoute>
             } 
           />

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
-import { X, Trash2, Edit2, Check, MessageSquare, Clock, Plus, Calendar } from 'lucide-react'
+import { X, Trash2, Edit2, Check, MessageSquare, Clock, Plus, Calendar, Star } from 'lucide-react'
 
 export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskDeleted, isReadOnly }) => {
   const { profile } = useAuth()
@@ -16,6 +16,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
   const [isSubmittingNote, setIsSubmittingNote] = useState(false)
   const [isSavingTask, setIsSavingTask] = useState(false)
   const [error, setError] = useState(null)
+  const [milestones, setMilestones] = useState([])
 
   const isOverdue = () => {
     if (!task.deadline || status === 'Done') return false
@@ -36,6 +37,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       setIsEditing(false)
       setError(null)
       fetchNotes()
+      fetchMilestones()
     }
   }, [isOpen, task])
 
@@ -61,6 +63,50 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       setNotes(data || [])
     } catch (err) {
       console.error('Error fetching task updates:', err.message)
+    }
+  }
+
+  const fetchMilestones = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('milestones')
+        .select('task_update_id, milestone_description')
+        .eq('task_id', task.id)
+
+      if (error) throw error
+      setMilestones(data || [])
+    } catch (err) {
+      console.error('Error fetching milestones:', err.message)
+    }
+  }
+
+  const handleMarkMilestone = async (noteId, currentMilestoneText) => {
+    if (currentMilestoneText) {
+      alert(`Milestone summary: "${currentMilestoneText}"`)
+      return
+    }
+
+    const desc = window.prompt("Identify this progress note as a milestone. Enter a milestone description:")
+    if (desc === null) return
+    if (!desc.trim()) {
+      alert("Milestone description is required.")
+      return
+    }
+
+    try {
+      const { error: insertErr } = await supabase
+        .from('milestones')
+        .insert({
+          task_id: task.id,
+          task_update_id: noteId,
+          milestone_description: desc.trim(),
+          created_by: profile.id
+        })
+
+      if (insertErr) throw insertErr
+      fetchMilestones()
+    } catch (err) {
+      alert(`Failed to save milestone: ${err.message}`)
     }
   }
 
@@ -433,30 +479,49 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                     hour: '2-digit',
                     minute: '2-digit'
                   })
-                  
-                  return (
-                    <div key={n.id} className="rounded-xl border border-dark-800 bg-dark-950/40 p-3.5 space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-300">
-                          {n.users?.name || n.users?.email || 'Anonymous'}
-                          <span className={`ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.25 rounded-md ${
-                            n.users?.role === 'admin' 
-                              ? 'bg-rose-500/10 text-rose-400' 
-                              : 'bg-emerald-500/10 text-emerald-400'
-                          }`}>
-                            {n.users?.role}
-                          </span>
-                        </span>
-                        <span className="text-slate-500 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {noteDate}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                        {n.note}
-                      </p>
-                    </div>
-                  )
+                                   const milestoneObj = milestones.find(m => m.task_update_id === n.id)
+                   const isMilestone = !!milestoneObj
+
+                   return (
+                     <div key={n.id} className="rounded-xl border border-dark-800 bg-dark-950/40 p-3.5 space-y-1.5">
+                       <div className="flex items-center justify-between text-xs">
+                         <span className="font-semibold text-slate-300">
+                           {n.users?.name || n.users?.email || 'Anonymous'}
+                           <span className={`ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.25 rounded-md ${
+                             n.users?.role === 'admin' 
+                               ? 'bg-rose-500/10 text-rose-400' 
+                               : 'bg-emerald-500/10 text-emerald-400'
+                           }`}>
+                             {n.users?.role}
+                           </span>
+                         </span>
+                         
+                         <div className="flex items-center gap-3">
+                           {/* Milestone/Star button - visible to Admins only */}
+                           {profile?.role === 'admin' && (
+                             <button
+                               onClick={() => handleMarkMilestone(n.id, milestoneObj?.milestone_description)}
+                               className={`flex items-center gap-1 p-1 rounded-md transition-colors ${
+                                 isMilestone 
+                                   ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
+                                   : 'text-slate-500 hover:text-white bg-dark-900/50 hover:bg-dark-800'
+                               }`}
+                               title={isMilestone ? `Milestone: ${milestoneObj.milestone_description}` : "Mark as Milestone"}
+                             >
+                               <Star className={`h-3.5 w-3.5 ${isMilestone ? 'fill-current' : ''}`} />
+                             </button>
+                           )}
+                           <span className="text-slate-505 flex items-center gap-1">
+                             <Clock className="h-3 w-3" />
+                             {noteDate}
+                           </span>
+                         </div>
+                       </div>
+                       <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
+                         {n.note}
+                       </p>
+                     </div>
+                    )
                 })
               )}
             </div>

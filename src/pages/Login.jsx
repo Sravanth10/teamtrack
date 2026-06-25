@@ -73,6 +73,34 @@ const PREDEFINED_SKILLS = [
   'PostgreSQL'
 ]
 
+const calculateExperience = (joiningDateStr) => {
+  if (!joiningDateStr) return '0 months'
+  const joinDate = new Date(joiningDateStr)
+  const currentDate = new Date()
+  
+  let years = currentDate.getFullYear() - joinDate.getFullYear()
+  let months = currentDate.getMonth() - joinDate.getMonth()
+  let days = currentDate.getDate() - joinDate.getDate()
+  
+  if (days < 0) {
+    months -= 1
+  }
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+  
+  const yearText = years > 0 ? `${years} yr${years > 1 ? 's' : ''}` : ''
+  const monthText = months > 0 ? `${months} mo${months > 1 ? 's' : ''}` : ''
+  
+  if (yearText && monthText) {
+    return `${yearText}, ${monthText}`
+  }
+  if (yearText) return yearText
+  if (monthText) return monthText
+  return '0 months'
+}
+
 export const Login = () => {
   const { login, resetPassword, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
@@ -91,7 +119,10 @@ export const Login = () => {
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
 
   // Custom Details States
-  const [experience, setExperience] = useState('')
+  const [tcsJoiningDate, setTcsJoiningDate] = useState('')
+  const [rapidJoiningDate, setRapidJoiningDate] = useState('')
+  const [workLocation, setWorkLocation] = useState('')
+  const [employeeId, setEmployeeId] = useState('')
   const [selectedSkills, setSelectedSkills] = useState([])
   const [skillsQuery, setSkillsQuery] = useState('')
   const [isSkillsDropdownOpen, setIsSkillsDropdownOpen] = useState(false)
@@ -162,7 +193,7 @@ export const Login = () => {
 
     if (isSignUp) {
       if (signupStep === 1) {
-        if (!name.trim() || !email.trim() || !password || !confirmPassword || !experience.trim()) {
+        if (!name.trim() || !email.trim() || !password || !confirmPassword || !tcsJoiningDate || !rapidJoiningDate || !workLocation.trim() || !employeeId.trim()) {
           setError('Please fill in all fields')
           return
         }
@@ -222,9 +253,14 @@ export const Login = () => {
             options: {
               data: {
                 name: name.trim() || email.split('@')[0],
-                experience: experience.trim(),
                 skills: selectedSkills.join(','), // CSV string parsed by DB trigger
-                totp_secret: totpSecretObj.hex // stored in metadata for DB trigger
+                totp_secret: totpSecretObj.hex, // stored in metadata for DB trigger
+                tcs_joining_date: tcsJoiningDate,
+                rapid_joining_date: rapidJoiningDate,
+                work_location: workLocation.trim(),
+                employee_id: employeeId.trim(),
+                tcs_experience: calculateExperience(tcsJoiningDate),
+                rapid_experience: calculateExperience(rapidJoiningDate)
               }
             }
           })
@@ -238,7 +274,10 @@ export const Login = () => {
           setEmail('')
           setPassword('')
           setConfirmPassword('')
-          setExperience('')
+          setTcsJoiningDate('')
+          setRapidJoiningDate('')
+          setWorkLocation('')
+          setEmployeeId('')
           setSelectedSkills([])
           setTotpSecretObj(null)
           setTotpVerificationCode('')
@@ -390,21 +429,59 @@ export const Login = () => {
               {isSignUp && (
                 <div className="space-y-4">
                   
-                  {/* Experience */}
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Professional Experience (e.g. '3 years', '5+ years')
-                    </label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
-                        <Briefcase className="h-4 w-4" />
-                      </span>
+                  {/* Employee ID & Work Location */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        Employee ID
+                      </label>
                       <input
                         type="text"
-                        value={experience}
-                        onChange={(e) => setExperience(e.target.value)}
-                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
-                        placeholder="e.g. 4 years of Full Stack Development"
+                        value={employeeId}
+                        onChange={(e) => setEmployeeId(e.target.value)}
+                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 px-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
+                        placeholder="e.g. 1234567"
+                        required={isSignUp}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        Work Location
+                      </label>
+                      <input
+                        type="text"
+                        value={workLocation}
+                        onChange={(e) => setWorkLocation(e.target.value)}
+                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 px-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
+                        placeholder="e.g. Hyderabad"
+                        required={isSignUp}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Joining Dates */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        TCS Joining Date
+                      </label>
+                      <input
+                        type="date"
+                        value={tcsJoiningDate}
+                        onChange={(e) => setTcsJoiningDate(e.target.value)}
+                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 px-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
+                        required={isSignUp}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        Rapid Build Joining Date
+                      </label>
+                      <input
+                        type="date"
+                        value={rapidJoiningDate}
+                        onChange={(e) => setRapidJoiningDate(e.target.value)}
+                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 px-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
                         required={isSignUp}
                       />
                     </div>
@@ -665,7 +742,10 @@ export const Login = () => {
                   setShowConfirmPassword(false)
                   setError(null)
                   setSuccess(null)
-                  setExperience('')
+                  setTcsJoiningDate('')
+                  setRapidJoiningDate('')
+                  setWorkLocation('')
+                  setEmployeeId('')
                   setSelectedSkills([])
                   setSignupStep(1)
                 }}

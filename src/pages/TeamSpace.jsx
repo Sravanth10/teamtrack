@@ -451,14 +451,33 @@ export const TeamSpace = () => {
                         <span className="text-xs text-slate-500">No tasks in {colName}</span>
                       </div>
                     ) : (
-                      colTasks.map(task => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          onUpdateStatus={isTodayOnLeave ? () => {} : handleUpdateStatus}
-                          onClick={() => handleTaskClick(task)}
-                        />
-                      ))
+                      <>
+                        {colTasks.slice(0, 3).map(task => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            onUpdateStatus={isTodayOnLeave ? () => {} : handleUpdateStatus}
+                            onClick={() => handleTaskClick(task)}
+                          />
+                        ))}
+
+                        {colTasks.length > 3 && (
+                          <button
+                            onClick={() => {
+                              const categorySlugMap = {
+                                'To Do': 'to-do',
+                                'In Progress': 'in-progress',
+                                'Blocked': 'blocked',
+                                'Done': 'done'
+                              }
+                              navigate(`/team/${teamId}/archive/${categorySlugMap[colName]}`)
+                            }}
+                            className="w-full py-2.5 mt-2 text-center text-xs font-bold text-brand-400 hover:text-brand-300 bg-dark-950 hover:bg-dark-800 border border-dark-850 hover:border-brand-500/20 rounded-xl transition"
+                          >
+                            See previous tasks ({colTasks.length - 3} more)
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
