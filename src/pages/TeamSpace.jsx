@@ -43,6 +43,7 @@ export const TeamSpace = () => {
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [newTaskDate, setNewTaskDate] = useState(new Date().toISOString().split('T')[0])
+  const [newDeadline, setNewDeadline] = useState('')
   const [isSubmittingTask, setIsSubmittingTask] = useState(false)
 
   // Leave Form States
@@ -95,6 +96,7 @@ export const TeamSpace = () => {
           created_at,
           updated_at,
           created_by,
+          deadline,
           users (
             name,
             email,
@@ -206,7 +208,8 @@ export const TeamSpace = () => {
           description: newDescription.trim(),
           status: 'To Do',
           created_by: profile.id,
-          created_at: taskDateObj.toISOString()
+          created_at: taskDateObj.toISOString(),
+          deadline: newDeadline ? new Date(newDeadline).toISOString() : null
         })
 
       if (insertErr) throw insertErr
@@ -214,6 +217,7 @@ export const TeamSpace = () => {
       setNewTitle('')
       setNewDescription('')
       setNewTaskDate(new Date().toISOString().split('T')[0])
+      setNewDeadline('')
       setIsCreateModalOpen(false)
       fetchData()
     } catch (err) {
@@ -594,17 +598,27 @@ export const TeamSpace = () => {
                     value={newTaskDate}
                     onChange={(e) => setNewTaskDate(e.target.value)}
                     max={profile?.role === 'member' ? new Date().toISOString().split('T')[0] : undefined}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
                     required
                   />
                 </div>
-                <div className="flex flex-col justify-end">
-                  <span className="text-[10px] text-slate-500 mb-1.5 italic">
-                    {profile?.role === 'member' 
-                      ? '* Future dates disabled for members.' 
-                      : '* Leads can plan future tasks.'}
-                  </span>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Deadline (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={newDeadline}
+                    onChange={(e) => setNewDeadline(e.target.value)}
+                    min={newTaskDate}
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
+                  />
                 </div>
+              </div>
+              <div className="text-[10px] text-slate-500 italic">
+                {profile?.role === 'member' 
+                  ? '* Future dates disabled for members.' 
+                  : '* Leads can plan future tasks.'}
               </div>
 
               <div>

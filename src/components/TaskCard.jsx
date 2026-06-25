@@ -2,7 +2,16 @@ import React from 'react'
 import { Calendar, ArrowRight, CheckCircle2, Play, CircleAlert, Pause } from 'lucide-react'
 
 export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
-  const { title, description, status, created_at } = task
+  const { title, description, status, created_at, deadline } = task
+
+  // Determine if task is overdue
+  const isOverdue = deadline && status !== 'Done' && (() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const deadlineDate = new Date(deadline)
+    deadlineDate.setHours(0, 0, 0, 0)
+    return today > deadlineDate
+  })()
 
   // Status mapping for color coding
   const statusStyles = {
@@ -60,7 +69,11 @@ export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className={`group relative flex flex-col justify-between rounded-xl border border-dark-800 bg-dark-900 p-5 shadow-glass transition-all duration-300 hover:-translate-y-1 hover:border-brand-500/30 hover:shadow-glass-hover ${currentStyle.border} border-l-4 cursor-pointer`}
+      className={`group relative flex flex-col justify-between rounded-xl border p-5 transition-all duration-300 hover:-translate-y-1 hover:border-brand-500/30 hover:shadow-glass-hover ${currentStyle.border} border-l-4 cursor-pointer ${
+        isOverdue 
+          ? 'border-red-500/40 bg-red-950/5 shadow-[0_0_12px_rgba(239,68,68,0.12)]' 
+          : 'border-dark-800 bg-dark-900 shadow-glass'
+      }`}
     >
       <div>
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -85,9 +98,23 @@ export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
 
       <div className="mt-auto pt-4 border-t border-dark-800/60 flex flex-col gap-3">
         {/* Date and Metadata */}
-        <div className="flex items-center text-xs text-slate-500">
-          <Calendar className="mr-1.5 h-3.5 w-3.5" />
-          <span>Created on {formattedDate}</span>
+        <div className="flex flex-col gap-1.5 text-xs text-slate-500">
+          <div className="flex items-center">
+            <Calendar className="mr-1.5 h-3.5 w-3.5" />
+            <span>Created on {formattedDate}</span>
+          </div>
+          {deadline && (
+            <div className={`flex items-center font-medium ${isOverdue ? 'text-red-400 font-bold' : 'text-slate-400'}`}>
+              <Calendar className={`mr-1.5 h-3.5 w-3.5 ${isOverdue ? 'text-red-400' : 'text-slate-500'}`} />
+              <span>
+                Deadline: {new Date(deadline).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric'
+                })} {isOverdue && '(Overdue)'}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Quick status transition actions */}

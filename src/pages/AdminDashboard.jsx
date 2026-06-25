@@ -50,6 +50,7 @@ export const AdminDashboard = () => {
           description,
           status,
           created_at,
+          deadline,
           users (
             name,
             email
@@ -75,6 +76,7 @@ export const AdminDashboard = () => {
         'Task Name',
         'Task Description',
         'Task Date',
+        'Deadline',
         'Status of Task'
       ]
 
@@ -95,6 +97,7 @@ export const AdminDashboard = () => {
         escapeCSV(task.title),
         escapeCSV(task.description || ''),
         escapeCSV(new Date(task.created_at).toLocaleDateString()),
+        escapeCSV(task.deadline ? new Date(task.deadline).toLocaleDateString() : 'N/A'),
         escapeCSV(task.title === 'Leave' ? 'Leave' : task.status)
       ])
 

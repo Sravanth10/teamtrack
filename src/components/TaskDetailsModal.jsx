@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
-import { X, Trash2, Edit2, Check, MessageSquare, Clock, Plus } from 'lucide-react'
+import { X, Trash2, Edit2, Check, MessageSquare, Clock, Plus, Calendar } from 'lucide-react'
 
 export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskDeleted, isReadOnly }) => {
   const { profile } = useAuth()
@@ -12,9 +12,19 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
   const [notes, setNotes] = useState([])
   const [newNote, setNewNote] = useState('')
   const [taskDate, setTaskDate] = useState(new Date().toISOString().split('T')[0])
+  const [deadline, setDeadline] = useState(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '')
   const [isSubmittingNote, setIsSubmittingNote] = useState(false)
   const [isSavingTask, setIsSavingTask] = useState(false)
   const [error, setError] = useState(null)
+
+  const isOverdue = () => {
+    if (!task.deadline || status === 'Done') return false
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const deadlineDate = new Date(task.deadline)
+    deadlineDate.setHours(0, 0, 0, 0)
+    return today > deadlineDate
+  }
 
   useEffect(() => {
     if (isOpen && task.id) {
@@ -22,6 +32,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       setDescription(task.description || '')
       setStatus(task.status)
       setTaskDate(task.created_at ? new Date(task.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
+      setDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '')
       setIsEditing(false)
       setError(null)
       fetchNotes()
@@ -102,6 +113,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
           description: description.trim(),
           status,
           created_at: taskDateObj.toISOString(),
+          deadline: deadline ? new Date(deadline).toISOString() : null,
           updated_at: new Date().toISOString()
         })
         .eq('id', task.id)
@@ -234,7 +246,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Status
@@ -242,7 +254,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-white focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
                   >
                     <option value="To Do">To Do</option>
                     <option value="In Progress">In Progress</option>
@@ -259,8 +271,20 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                     value={taskDate}
                     onChange={(e) => setTaskDate(e.target.value)}
                     max={profile?.role === 'member' ? new Date().toISOString().split('T')[0] : undefined}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-white focus:border-brand-500 focus:outline-none"
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Deadline (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    min={taskDate}
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
                   />
                 </div>
               </div>
@@ -290,13 +314,29 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                   <h3 className="font-sans text-xl font-bold text-white leading-snug">
                     {task.title}
                   </h3>
-                  <span className="text-xs text-slate-500 block mt-1">
-                    Created by {task.users?.name || task.users?.email || 'Unknown'} on {new Date(task.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-y-1 mt-1 text-xs text-slate-500">
+                    <span>
+                      Created by {task.users?.name || task.users?.email || 'Unknown'} on {new Date(task.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </span>
+                    {task.deadline && (
+                      <span className={`ml-3 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 ${
+                        isOverdue()
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/25 animate-pulse'
+                          : 'bg-dark-950 text-slate-350 border border-dark-850'
+                      }`}>
+                        <Calendar className="h-3 w-3" />
+                        Deadline: {new Date(task.deadline).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })} {isOverdue() && '(Overdue)'}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Control Action Buttons */}
