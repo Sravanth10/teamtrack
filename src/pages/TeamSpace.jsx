@@ -44,6 +44,7 @@ export const TeamSpace = () => {
   const [newDescription, setNewDescription] = useState('')
   const [newTaskDate, setNewTaskDate] = useState(new Date().toISOString().split('T')[0])
   const [newDeadline, setNewDeadline] = useState('')
+  const [newTaskType, setNewTaskType] = useState('exploration/other') // 'assignment' or 'exploration/other'
   const [isSubmittingTask, setIsSubmittingTask] = useState(false)
 
   // Leave Form States
@@ -93,6 +94,7 @@ export const TeamSpace = () => {
           title,
           description,
           status,
+          task_type,
           created_at,
           updated_at,
           created_by,
@@ -175,6 +177,12 @@ export const TeamSpace = () => {
     e.preventDefault()
     if (!newTitle.trim()) return
 
+    // Validate deadline is mandatory for assignment task type
+    if (newTaskType === 'assignment' && !newDeadline) {
+      setError('Deadline is mandatory for assignment task type.')
+      return
+    }
+
     setIsSubmittingTask(true)
     setError(null)
     try {
@@ -207,6 +215,7 @@ export const TeamSpace = () => {
           title: newTitle.trim(),
           description: newDescription.trim(),
           status: 'To Do',
+          task_type: newTaskType,
           created_by: profile.id,
           created_at: taskDateObj.toISOString(),
           deadline: newDeadline ? new Date(newDeadline).toISOString() : null
@@ -218,6 +227,7 @@ export const TeamSpace = () => {
       setNewDescription('')
       setNewTaskDate(new Date().toISOString().split('T')[0])
       setNewDeadline('')
+      setNewTaskType('exploration/other')
       setIsCreateModalOpen(false)
       fetchData()
     } catch (err) {
@@ -607,6 +617,37 @@ export const TeamSpace = () => {
             </div>
 
             <form onSubmit={handleCreateTask} className="space-y-4">
+              {/* Task Type Radio Selection */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Task Type *
+                </label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 text-sm text-slate-350 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="newTaskType"
+                      value="assignment"
+                      checked={newTaskType === 'assignment'}
+                      onChange={() => setNewTaskType('assignment')}
+                      className="accent-brand-500"
+                    />
+                    Assignment
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-350 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="newTaskType"
+                      value="exploration/other"
+                      checked={newTaskType === 'exploration/other'}
+                      onChange={() => setNewTaskType('exploration/other')}
+                      className="accent-brand-500"
+                    />
+                    Exploration/Other
+                  </label>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
@@ -623,7 +664,7 @@ export const TeamSpace = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Deadline (Optional)
+                    Deadline {newTaskType === 'assignment' ? '*' : '(Optional)'}
                   </label>
                   <input
                     type="date"
@@ -631,6 +672,7 @@ export const TeamSpace = () => {
                     onChange={(e) => setNewDeadline(e.target.value)}
                     min={newTaskDate}
                     className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
+                    required={newTaskType === 'assignment'}
                   />
                 </div>
               </div>

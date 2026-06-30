@@ -14,6 +14,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
   const [taskDate, setTaskDate] = useState(new Date().toISOString().split('T')[0])
   const [deadline, setDeadline] = useState(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '')
   const [isSubmittingNote, setIsSubmittingNote] = useState(false)
+  const [taskType, setTaskType] = useState(task.task_type || 'exploration/other')
   const [isSavingTask, setIsSavingTask] = useState(false)
   const [error, setError] = useState(null)
   const [milestones, setMilestones] = useState([])
@@ -32,6 +33,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       setTitle(task.title)
       setDescription(task.description || '')
       setStatus(task.status)
+      setTaskType(task.task_type || 'exploration/other')
       setTaskDate(task.created_at ? new Date(task.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])
       setDeadline(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '')
       setIsEditing(false)
@@ -117,6 +119,12 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       return
     }
 
+    // Validate deadline is mandatory for assignment task type
+    if (taskType === 'assignment' && !deadline) {
+      setError('Deadline is mandatory for assignment task type.')
+      return
+    }
+
     setIsSavingTask(true)
     setError(null)
     try {
@@ -158,6 +166,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
           title: title.trim(),
           description: description.trim(),
           status,
+          task_type: taskType,
           created_at: taskDateObj.toISOString(),
           deadline: deadline ? new Date(deadline).toISOString() : null,
           updated_at: new Date().toISOString()
@@ -266,6 +275,37 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
           {/* Task Info Form */}
           {isEditing ? (
             <form onSubmit={handleSaveTask} className="space-y-4">
+              {/* Task Type Radio Selection */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Task Type *
+                </label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 text-sm text-slate-350 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="editTaskType"
+                      value="assignment"
+                      checked={taskType === 'assignment'}
+                      onChange={() => setTaskType('assignment')}
+                      className="accent-brand-500"
+                    />
+                    Assignment
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-350 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="editTaskType"
+                      value="exploration/other"
+                      checked={taskType === 'exploration/other'}
+                      onChange={() => setTaskType('exploration/other')}
+                      className="accent-brand-500"
+                    />
+                    Exploration/Other
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                   Task Title
@@ -323,7 +363,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Deadline (Optional)
+                    Deadline {taskType === 'assignment' ? '*' : '(Optional)'}
                   </label>
                   <input
                     type="date"
@@ -331,6 +371,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                     onChange={(e) => setDeadline(e.target.value)}
                     min={taskDate}
                     className="w-full rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
+                    required={taskType === 'assignment'}
                   />
                 </div>
               </div>
@@ -360,7 +401,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                   <h3 className="font-sans text-xl font-bold text-white leading-snug">
                     {task.title}
                   </h3>
-                  <div className="flex flex-wrap items-center gap-y-1 mt-1 text-xs text-slate-500">
+                  <div className="flex flex-wrap items-center gap-y-2 gap-x-3 mt-1.5 text-xs text-slate-500">
                     <span>
                       Created by {task.users?.name || task.users?.email || 'Unknown'} on {new Date(task.created_at).toLocaleDateString('en-US', {
                         month: 'short',
@@ -368,8 +409,13 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                         year: 'numeric'
                       })}
                     </span>
+                    {task.task_type && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-brand-500/10 text-brand-400 border border-brand-500/20 uppercase tracking-wide">
+                        {task.task_type.replace('_', '/')}
+                      </span>
+                    )}
                     {task.deadline && (
-                      <span className={`ml-3 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 ${
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 ${
                         isOverdue()
                           ? 'bg-rose-500/10 text-rose-400 border border-rose-500/25 animate-pulse'
                           : 'bg-dark-950 text-slate-350 border border-dark-850'

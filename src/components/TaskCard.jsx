@@ -77,12 +77,19 @@ export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
     >
       <div>
         <div className="flex items-start justify-between gap-2 mb-2">
-          <h4 className={`font-sans text-base font-bold transition-colors line-clamp-2 ${
-            isOverdue ? 'text-red-400 group-hover:text-red-300' : 'text-white group-hover:text-brand-300'
-          }`}>
-            {title}
-          </h4>
-          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${currentStyle.badge}`}>
+          <div className="flex flex-col min-w-0">
+            <h4 className={`font-sans text-base font-bold transition-colors line-clamp-2 ${
+              isOverdue ? 'text-red-400 group-hover:text-red-300' : 'text-white group-hover:text-brand-300'
+            }`}>
+              {title}
+            </h4>
+            {task.task_type && (
+              <span className="text-[10px] text-slate-500 font-semibold mt-1">
+                Type: <span className="text-slate-400 font-medium capitalize">{task.task_type.replace('_', '/')}</span>
+              </span>
+            )}
+          </div>
+          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold shrink-0 ${currentStyle.badge}`}>
             {status}
           </span>
         </div>
@@ -102,8 +109,8 @@ export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
         {/* Date and Metadata */}
         <div className="flex flex-col gap-1.5 text-xs text-slate-500">
           <div className="flex items-center">
-            <Calendar className="mr-1.5 h-3.5 w-3.5" />
-            <span>Created on {formattedDate}</span>
+            <Calendar className="mr-1.5 h-3.5 w-3.5 text-slate-500" />
+            <span>Created by <span className="text-slate-350 font-semibold">{task.users?.name || task.users?.email || 'Unknown'}</span> on {formattedDate}</span>
           </div>
           {deadline && (
             <div className={`flex items-center font-medium ${isOverdue ? 'text-red-400 font-bold' : 'text-slate-400'}`}>

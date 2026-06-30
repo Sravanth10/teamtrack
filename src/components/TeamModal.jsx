@@ -5,8 +5,11 @@ import { X, Plus, UserMinus, UserPlus, Users, Loader } from 'lucide-react'
 export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('general')
   const [members, setMembers] = useState([])
-  const [memberEmail, setMemberEmail] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isAddingMember, setIsAddingMember] = useState(false)
   const [error, setError] = useState(null)
@@ -19,17 +22,53 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
       if (team) {
         setName(team.name)
         setDescription(team.description || '')
+        setCategory(team.category || 'general')
         fetchMembers()
       } else {
         setName('')
         setDescription('')
+        setCategory('general')
         setMembers([])
       }
-      setMemberEmail('')
+      setSearchQuery('')
+      setSearchResults([])
       setError(null)
       setSuccessMsg(null)
     }
   }, [isOpen, team])
+
+  // Dynamic User Search effect
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([])
+      return
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const { data, error: searchErr } = await supabase
+          .from('users')
+          .select('id, email, name, employee_id, approved_status')
+          .or(`name.ilike.%${searchQuery.trim()}%,email.ilike.%${searchQuery.trim()}%`)
+          .limit(5)
+
+        if (searchErr) throw searchErr
+        
+        // Filter out users already in the team
+        const filtered = (data || []).filter(u => 
+          !members.some(m => m.user_id === u.id || m.email.toLowerCase() === u.email.toLowerCase())
+        )
+        setSearchResults(filtered)
+      } catch (err) {
+        console.error('Error searching users:', err.message)
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(delayDebounce)
+  }, [searchQuery, members])
 
   const fetchMembers = async () => {
     try {
@@ -71,7 +110,8 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
           .from('teams')
           .update({
             name: name.trim(),
-            description: description.trim()
+            description: description.trim(),
+            category: category.toLowerCase().trim()
           })
           .eq('id', team.id)
 
@@ -84,6 +124,7 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
           .insert({
             name: name.trim(),
             description: description.trim(),
+            category: category.toLowerCase().trim(),
             created_by: user.id
           })
 
@@ -99,24 +140,108 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
     }
   }
 
+  const handleSelectUser = async (user) => {
+    setIsAddingMember(true)
+    setError(null)
+    setSuccessMsg(null)
+    setSearchResults([])
+    setSearchQuery('')
+
+    try {
+      let activeUser = { ...user }
+
+      // Check if previously rejected
+      if (activeUser.approved_status === 'rejected') {
+        const confirmApprove = window.confirm(`This user (${activeUser.name || activeUser.email}) was previously rejected by the admin. Do you want to approve this user and add them to the team?`)
+        if (!confirmApprove) {
+          setIsAddingMember(false)
+          return
+        }
+
+        // Approve the user
+        const { error: approveErr } = await supabase
+          .from('users')
+          .update({ approved_status: 'approved' })
+          .eq('id', activeUser.id)
+
+        if (approveErr) throw approveErr
+        
+        activeUser.approved_status = 'approved'
+      }
+
+      // Check if already a member/invited (double check)
+      const { data: existingMember, error: memberCheckErr } = await supabase
+        .from('team_members')
+        .select('id')
+        .eq('team_id', team.id)
+        .eq('email', activeUser.email.toLowerCase())
+        .maybeSingle()
+
+      if (memberCheckErr) throw memberCheckErr
+
+      if (existingMember) {
+        throw new Error('This user is already added or invited to this team.')
+      }
+
+      // Add to team_members
+      const { error: addErr } = await supabase
+        .from('team_members')
+        .insert({
+          team_id: team.id,
+          user_id: activeUser.id,
+          email: activeUser.email.toLowerCase()
+        })
+
+      if (addErr) throw addErr
+
+      setSuccessMsg(`Successfully added ${activeUser.name || activeUser.email} to the team!`)
+      fetchMembers()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setIsAddingMember(false)
+    }
+  }
+
   const handleAddMember = async (e) => {
     e.preventDefault()
-    if (!memberEmail.trim()) return
+    if (!searchQuery.trim()) return
 
     setIsAddingMember(true)
     setError(null)
     setSuccessMsg(null)
+    setSearchResults([])
+
     try {
-      const targetEmail = memberEmail.trim().toLowerCase()
+      const targetEmail = searchQuery.trim().toLowerCase()
 
       // 1. Look up user by email in public.users
       const { data: userProfile, error: userErr } = await supabase
         .from('users')
-        .select('id, email, name')
+        .select('id, email, name, approved_status')
         .eq('email', targetEmail)
         .maybeSingle()
 
       if (userErr) throw userErr
+
+      // If user exists and is rejected, prompt admin
+      if (userProfile && userProfile.approved_status === 'rejected') {
+        const confirmApprove = window.confirm(`This user (${userProfile.name || targetEmail}) was previously rejected by the admin. Do you want to approve this user and add them to the team?`)
+        if (!confirmApprove) {
+          setIsAddingMember(false)
+          return
+        }
+
+        // Approve the user
+        const { error: approveErr } = await supabase
+          .from('users')
+          .update({ approved_status: 'approved' })
+          .eq('id', userProfile.id)
+
+        if (approveErr) throw approveErr
+        
+        userProfile.approved_status = 'approved'
+      }
 
       // 2. Check if this email is already a member or invited to this team
       const { data: existingMember, error: memberCheckErr } = await supabase
@@ -148,7 +273,8 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
       } else {
         setSuccessMsg(`Invitation saved for pending user "${targetEmail}". They will be added to the team automatically upon registration.`)
       }
-      setMemberEmail('')
+
+      setSearchQuery('')
       fetchMembers()
     } catch (err) {
       setError(err.message)
@@ -246,6 +372,20 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                Team Category
+              </label>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none text-sm"
+                placeholder="e.g. general, development, qa..."
+                required
+              />
+            </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -272,30 +412,71 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
               </h4>
 
               {/* Add Member form */}
-              <form onSubmit={handleAddMember} className="flex gap-2 mb-4">
-                <input
-                  type="email"
-                  value={memberEmail}
-                  onChange={(e) => setMemberEmail(e.target.value)}
-                  placeholder="Invite member by registered email..."
-                  className="flex-1 rounded-lg border border-dark-700 bg-dark-950 px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={isAddingMember || !memberEmail.trim()}
-                  className="flex items-center gap-1 rounded-lg bg-brand-500/10 border border-brand-500/20 text-brand-400 hover:bg-brand-500/20 px-4 py-2 text-xs font-semibold transition disabled:opacity-50"
-                >
-                  {isAddingMember ? (
-                    <Loader className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <>
-                      <UserPlus className="h-3.5 w-3.5" />
-                      Add Member
-                    </>
-                  )}
-                </button>
-              </form>
+              <div className="relative mb-4">
+                <form onSubmit={handleAddMember} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search user by name/email or enter new email..."
+                    className="flex-1 rounded-lg border border-dark-700 bg-dark-950 px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none"
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={isAddingMember || !searchQuery.trim()}
+                    className="flex items-center gap-1 rounded-lg bg-brand-500/10 border border-brand-500/20 text-brand-400 hover:bg-brand-500/20 px-4 py-2 text-xs font-semibold transition disabled:opacity-50"
+                  >
+                    {isAddingMember ? (
+                      <Loader className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Add Member
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                {/* Dynamic search results dropdown */}
+                {searchQuery.trim() && (searchResults.length > 0 || isSearching) && (
+                  <div className="absolute z-30 mt-1 w-full rounded-lg border border-dark-700 bg-dark-900 p-2 shadow-xl max-h-56 overflow-y-auto space-y-1">
+                    {isSearching ? (
+                      <div className="flex items-center justify-center p-3 text-xs text-slate-500 gap-2">
+                        <Loader className="h-3.5 w-3.5 animate-spin" />
+                        Searching...
+                      </div>
+                    ) : (
+                      searchResults.map((user) => (
+                        <div
+                          key={user.id}
+                          onClick={() => handleSelectUser(user)}
+                          className="flex flex-col rounded-lg border border-dark-800 bg-dark-950/40 p-2.5 hover:bg-dark-850 cursor-pointer transition text-left"
+                        >
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-sm font-semibold text-white truncate max-w-[200px]">
+                              {user.name || 'N/A'}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              Emp ID: {user.employee_id || 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-xs text-slate-400 truncate max-w-[250px]">
+                              {user.email}
+                            </span>
+                            {user.approved_status === 'rejected' && (
+                              <span className="text-[9px] font-bold uppercase bg-rose-500/10 text-rose-400 px-1.5 py-0.25 rounded border border-rose-500/20">
+                                Rejected
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Member list */}
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1">

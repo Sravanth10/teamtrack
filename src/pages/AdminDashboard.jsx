@@ -25,7 +25,8 @@ import {
   MapPin,
   Calendar,
   User,
-  Star
+  Star,
+  Phone
 } from 'lucide-react'
 
 const PREDEFINED_SKILLS = [
@@ -74,6 +75,25 @@ const PREDEFINED_SKILLS = [
   'NoSQL Databases (MongoDB, Redis)',
   'PostgreSQL'
 ]
+
+const REGIONS = [
+  { code: '+91', country: 'India', digits: 10, placeholder: '9876543210' },
+  { code: '+1', country: 'US/Canada', digits: 10, placeholder: '2015550123' },
+  { code: '+44', country: 'UK', digits: 10, placeholder: '7400123456' },
+  { code: '+61', country: 'Australia', digits: 9, placeholder: '412345678' },
+  { code: '+65', country: 'Singapore', digits: 8, placeholder: '81234567' },
+  { code: '+971', country: 'UAE', digits: 9, placeholder: '501234567' }
+]
+
+const parsePhone = (fullPhone) => {
+  if (!fullPhone) return { region: '+91', number: '' }
+  const match = REGIONS.find(r => fullPhone.startsWith(r.code + ' ') || fullPhone.startsWith(r.code))
+  if (match) {
+    const number = fullPhone.slice(match.code.length).trim()
+    return { region: match.code, number }
+  }
+  return { region: '+91', number: fullPhone }
+}
 
 const calculateExperience = (joiningDateStr) => {
   if (!joiningDateStr) return '0 months'
@@ -132,7 +152,8 @@ export const AdminDashboard = () => {
   const [editRole, setEditRole] = useState('member')
   const [editEmployeeId, setEditEmployeeId] = useState('')
   const [editWorkLocation, setEditWorkLocation] = useState('')
-  const [editTcsJoiningDate, setEditTcsJoiningDate] = useState('')
+  const [editPhoneRegion, setEditPhoneRegion] = useState('+91')
+  const [editPhoneNo, setEditPhoneNo] = useState('')
   const [editRapidJoiningDate, setEditRapidJoiningDate] = useState('')
   const [editSkills, setEditSkills] = useState([])
   const [skillsInput, setSkillsInput] = useState('')
@@ -141,6 +162,11 @@ export const AdminDashboard = () => {
   // Milestones Tab States
   const [milestones, setMilestones] = useState([])
   const [milestonesLoading, setMilestonesLoading] = useState(false)
+
+  // Team Overview States
+  const [engagedCandidates, setEngagedCandidates] = useState([])
+  const [nonEngagedCandidates, setNonEngagedCandidates] = useState([])
+  const [overviewLoading, setOverviewLoading] = useState(false)
 
   const handleExportCSV = async () => {
     setExporting(true)
@@ -265,6 +291,7 @@ export const AdminDashboard = () => {
           id,
           name,
           description,
+          category,
           created_at,
           team_members (id),
           tasks (id, status)
@@ -275,6 +302,87 @@ export const AdminDashboard = () => {
       setTeams(data || [])
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  const fetchOverviewData = async () => {
+    setOverviewLoading(true)
+    setError(null)
+    try {
+      // 1. Fetch all approved users who are members
+      const { data: allUsers, error: usersErr } = await supabase
+        .from('users')
+        .select('id, name, email, employee_id, approved_status, role')
+        .eq('approved_status', 'approved')
+        .eq('role', 'member')
+
+      if (usersErr) throw usersErr
+
+      // 2. Fetch all team memberships with their team category
+      const { data: allMemberships, error: memErr } = await supabase
+        .from('team_members')
+        .select(`
+          id,
+          user_id,
+          email,
+          team_id,
+          teams (
+            id,
+            name,
+            category
+          )
+        `)
+
+      if (memErr) throw memErr
+
+      // 3. Process and classify candidates
+      const engaged = []
+      const nonEngaged = []
+
+      if (allUsers && allUsers.length > 0) {
+        allUsers.forEach(user => {
+          const userMemberships = (allMemberships || []).filter(m => 
+            m.user_id === user.id || m.email.toLowerCase() === user.email.toLowerCase()
+          )
+
+          if (userMemberships.length === 0) {
+            // Unassigned: not in any teams, exclude
+            return
+          }
+
+          const hasNonGeneralTeam = userMemberships.some(m => {
+            const cat = (m.teams?.category || '').toLowerCase().trim()
+            return cat !== 'general'
+          })
+
+          const hasGeneralTeam = userMemberships.some(m => {
+            const cat = (m.teams?.category || '').toLowerCase().trim()
+            return cat === 'general'
+          })
+
+          if (hasNonGeneralTeam) {
+            engaged.push({
+              ...user,
+              teamName: userMemberships.map(m => m.teams?.name || 'N/A').join(', '),
+              teamCategory: userMemberships.map(m => m.teams?.category || 'N/A').join(', ')
+            })
+          } else if (hasGeneralTeam) {
+            nonEngaged.push({
+              ...user,
+              teamName: userMemberships.map(m => m.teams?.name || 'N/A').join(', '),
+              teamCategory: userMemberships.map(m => m.teams?.category || 'N/A').join(', ')
+            })
+          }
+        })
+      }
+
+      setEngagedCandidates(engaged)
+      setNonEngagedCandidates(nonEngaged)
+    } catch (err) {
+      console.error('Error fetching overview data:', err.message)
+      setError(err.message)
+    } finally {
+      setOverviewLoading(false)
     }
   }
 
@@ -308,12 +416,21 @@ export const AdminDashboard = () => {
             description,
             status,
             created_at,
-            deadline
+            deadline,
+            teams (
+              id,
+              name
+            )
           ),
           task_updates (
             id,
             note,
-            created_at
+            created_at,
+            users (
+              id,
+              name,
+              email
+            )
           )
         `)
         .order('created_at', { ascending: false })
@@ -394,7 +511,9 @@ export const AdminDashboard = () => {
           const userTasks = tasksData ? tasksData.filter(t => t.created_by === user.id) : []
           return {
             ...user,
-            teamName: user.team_members?.[0]?.teams?.name || 'No Assigned Team',
+            teamName: user.team_members && user.team_members.length > 0
+              ? user.team_members.map(tm => tm.teams?.name).filter(Boolean).join(', ')
+              : 'No Assigned Team',
             tasks: userTasks
           }
         })
@@ -457,7 +576,9 @@ export const AdminDashboard = () => {
             const userTasks = tasksData ? tasksData.filter(t => t.created_by === user.id) : []
             return {
               ...user,
-              teamName: user.team_members?.[0]?.teams?.name || 'No Assigned Team',
+              teamName: user.team_members && user.team_members.length > 0
+                ? user.team_members.map(tm => tm.teams?.name).filter(Boolean).join(', ')
+                : 'No Assigned Team',
               tasks: userTasks
             }
           })
@@ -482,7 +603,9 @@ export const AdminDashboard = () => {
     setEditRole(user.role || 'member')
     setEditEmployeeId(user.employee_id || '')
     setEditWorkLocation(user.work_location || '')
-    setEditTcsJoiningDate(user.tcs_joining_date || '')
+    const parsedPhone = parsePhone(user.phone_number)
+    setEditPhoneRegion(parsedPhone.region)
+    setEditPhoneNo(parsedPhone.number)
     setEditRapidJoiningDate(user.rapid_joining_date || '')
     setEditSkills(user.skills || [])
     setSkillsInput('')
@@ -506,9 +629,14 @@ export const AdminDashboard = () => {
     e.preventDefault()
     if (!editingUser) return
 
+    const currentRegion = REGIONS.find(r => r.code === editPhoneRegion)
+    if (editPhoneNo.trim() && editPhoneNo.trim().length !== currentRegion.digits) {
+      alert(`Phone number for ${currentRegion.country} must be exactly ${currentRegion.digits} digits long`)
+      return
+    }
+
     setLoading(true)
     try {
-      const tcsExp = calculateExperience(editTcsJoiningDate)
       const rapidExp = calculateExperience(editRapidJoiningDate)
 
       const { error: updateErr } = await supabase
@@ -518,11 +646,10 @@ export const AdminDashboard = () => {
           role: editRole,
           employee_id: editEmployeeId.trim(),
           work_location: editWorkLocation.trim(),
-          tcs_joining_date: editTcsJoiningDate || null,
           rapid_joining_date: editRapidJoiningDate || null,
-          tcs_experience: tcsExp,
           rapid_experience: rapidExp,
-          skills: editSkills
+          skills: editSkills,
+          phone_number: editPhoneNo.trim() ? `${editPhoneRegion} ${editPhoneNo.trim()}` : null
         })
         .eq('id', editingUser.id)
 
@@ -714,6 +841,19 @@ export const AdminDashboard = () => {
               </span>
             )}
           </button>
+          <button
+            onClick={() => {
+              setActiveTab('overview')
+              fetchOverviewData()
+            }}
+            className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+              activeTab === 'overview' 
+                ? 'border-brand-500 text-white' 
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>Team Overview</span>
+          </button>
         </div>
 
         {/* Loading Spinner */}
@@ -894,8 +1034,8 @@ export const AdminDashboard = () => {
                               <span className="text-slate-200">{u.work_location || 'N/A'}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">TCS Exp:</span>
-                              <span className="text-slate-200">{u.tcs_experience || 'N/A'} <span className="text-slate-500 text-[10px]">({u.tcs_joining_date || 'N/A'})</span></span>
+                              <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Phone Number:</span>
+                              <span className="text-slate-200">{u.phone_number || 'N/A'}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Rapid Exp:</span>
@@ -961,14 +1101,14 @@ export const AdminDashboard = () => {
                             <>
                               <button
                                 onClick={() => handleApproveClick(u.id)}
-                                className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm px-4.5 py-2.5 transition"
+                                className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm px-5 py-2.5 transition"
                               >
                                 <Check className="h-4.5 w-4.5" />
                                 Approve User
                               </button>
                               <button
                                 onClick={() => handleRejectClick(u.id)}
-                                className="flex items-center justify-center gap-1.5 rounded-xl bg-dark-900 border border-rose-500/20 hover:bg-rose-500/10 text-rose-400 hover:text-rose-200 font-semibold text-sm px-4.5 py-2.5 transition"
+                                className="flex items-center justify-center gap-1.5 rounded-xl bg-dark-900 border border-rose-500/20 hover:bg-rose-500/10 text-rose-400 hover:text-rose-200 font-semibold text-sm px-5 py-2.5 transition"
                               >
                                 <X className="h-4.5 w-4.5" />
                                 Reject
@@ -1077,9 +1217,8 @@ export const AdminDashboard = () => {
                                 <span className="font-semibold text-slate-205">{user.work_location || 'N/A'}</span>
                               </div>
                               <div>
-                                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">TCS Experience</span>
-                                <span className="font-semibold text-slate-205 block">{user.tcs_experience || 'N/A'}</span>
-                                <span className="text-[10px] text-slate-500">Joined: {user.tcs_joining_date || 'N/A'}</span>
+                                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Phone Number</span>
+                                <span className="font-semibold text-slate-205 block">{user.phone_number || 'N/A'}</span>
                               </div>
                               <div>
                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Rapid Build Exp</span>
@@ -1245,6 +1384,14 @@ export const AdminDashboard = () => {
                           </button>
 
                           <div className="space-y-4 flex-1">
+                            {/* Developer Name */}
+                            <div className="pr-10">
+                              <span className="text-[9px] uppercase font-bold tracking-wider text-slate-500 block">Developer</span>
+                              <span className="text-sm font-bold text-brand-400">
+                                {note.users?.name || note.users?.email || 'N/A'}
+                              </span>
+                            </div>
+
                             {/* Title Block */}
                             <div>
                               <span className="text-[9px] uppercase font-bold tracking-wider text-slate-500 block mb-1">Associated Task Card</span>
@@ -1303,6 +1450,136 @@ export const AdminDashboard = () => {
                         </div>
                       )
                     })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Active Tab: Team Overview */}
+            {activeTab === 'overview' && (
+              <div className="space-y-8">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-dark-800 pb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Users className="h-5 w-5 text-brand-400" />
+                      Team Engagement Overview
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Real-time lists of candidates classified as engaged or non-engaged based on their team categories.
+                    </p>
+                  </div>
+                </div>
+
+                {overviewLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader className="h-8 w-8 text-brand-500 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    
+                    {/* Engaged Candidates List */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                        <h3 className="text-lg font-bold text-white">
+                          Engaged Candidates ({engagedCandidates.length})
+                        </h3>
+                      </div>
+                      
+                      {engagedCandidates.length === 0 ? (
+                        <p className="text-xs text-slate-505 italic py-2">
+                          No engaged candidates found. (Candidates who belong to at least one team with a category other than 'general').
+                        </p>
+                      ) : (
+                        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                          {engagedCandidates.map(user => (
+                            <div 
+                              key={user.id}
+                              className="rounded-2xl border border-dark-800 bg-dark-900 p-5 flex flex-col justify-between gap-3 hover:border-brand-500/10 transition-colors shadow-glass"
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-sans font-bold text-white text-sm truncate max-w-[150px]">
+                                    {user.name || 'N/A'}
+                                  </h4>
+                                  <span className="text-[10px] text-slate-500 font-mono select-all">
+                                    Emp ID: {user.employee_id || 'N/A'}
+                                  </span>
+                                </div>
+                                
+                                <div className="space-y-1 text-xs text-slate-400">
+                                  <div>
+                                    <span className="font-semibold text-slate-500">Team: </span>
+                                    <span className="text-slate-200">{user.teamName}</span>
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-slate-500">Category: </span>
+                                    <span className="text-brand-400 font-medium capitalize">{user.teamCategory}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="pt-2.5 border-t border-dark-800/40 text-[11px] text-slate-500 font-mono truncate select-all">
+                                {user.email}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Non-Engaged Candidates List */}
+                    <div className="space-y-4 pt-4 border-t border-dark-800/40">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                        <h3 className="text-lg font-bold text-white">
+                          Non-Engaged Candidates ({nonEngagedCandidates.length})
+                        </h3>
+                      </div>
+                      
+                      {nonEngagedCandidates.length === 0 ? (
+                        <p className="text-xs text-slate-505 italic py-2">
+                          No non-engaged candidates found. (Candidates who belong only to teams categorized as 'general' and no other teams).
+                        </p>
+                      ) : (
+                        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                          {nonEngagedCandidates.map(user => (
+                            <div 
+                              key={user.id}
+                              className="rounded-2xl border border-dark-850 bg-dark-900 p-5 flex flex-col justify-between gap-3 hover:border-brand-500/10 transition-colors shadow-glass border-l-4 border-l-amber-500/60"
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-sans font-bold text-white text-sm truncate max-w-[150px]">
+                                    {user.name || 'N/A'}
+                                  </h4>
+                                  <span className="text-[10px] text-slate-500 font-mono select-all">
+                                    Emp ID: {user.employee_id || 'N/A'}
+                                  </span>
+                                </div>
+                                
+                                <div className="space-y-1 text-xs text-slate-400">
+                                  <div>
+                                    <span className="font-semibold text-slate-500">Team: </span>
+                                    <span className="text-slate-200">{user.teamName}</span>
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-slate-500">Category: </span>
+                                    <span className="text-amber-400 font-medium capitalize">{user.teamCategory}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="pt-2.5 border-t border-dark-800/40 text-[11px] text-slate-500 font-mono truncate select-all">
+                                {user.email}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                 )}
               </div>
@@ -1373,7 +1650,7 @@ export const AdminDashboard = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Employee ID
@@ -1395,34 +1672,57 @@ export const AdminDashboard = () => {
                     value={editWorkLocation}
                     onChange={(e) => setEditWorkLocation(e.target.value)}
                     className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
+                    placeholder="eg. Hyderabad - Synergy park"
                     required
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    TCS Joining Date
-                  </label>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Phone Number
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={editPhoneRegion}
+                    onChange={(e) => {
+                      setEditPhoneRegion(e.target.value)
+                      setEditPhoneNo('')
+                    }}
+                    className="rounded-lg border border-dark-700 bg-dark-950 px-3 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm w-24"
+                  >
+                    {REGIONS.map((r) => (
+                      <option key={r.code} value={r.code} className="bg-dark-900 text-white">
+                        {r.code}
+                      </option>
+                    ))}
+                  </select>
                   <input
-                    type="date"
-                    value={editTcsJoiningDate}
-                    onChange={(e) => setEditTcsJoiningDate(e.target.value)}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
+                    type="tel"
+                    value={editPhoneNo}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '')
+                      const currentRegion = REGIONS.find(r => r.code === editPhoneRegion)
+                      if (val.length <= (currentRegion?.digits || 15)) {
+                        setEditPhoneNo(val)
+                      }
+                    }}
+                    placeholder={REGIONS.find(r => r.code === editPhoneRegion)?.placeholder || 'Phone number'}
+                    className="flex-1 rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Rapid Build Joining Date
-                  </label>
-                  <input
-                    type="date"
-                    value={editRapidJoiningDate}
-                    onChange={(e) => setEditRapidJoiningDate(e.target.value)}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
-                  />
-                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Rapid Build Joining Date
+                </label>
+                <input
+                  type="date"
+                  value={editRapidJoiningDate}
+                  onChange={(e) => setEditRapidJoiningDate(e.target.value)}
+                  className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
+                />
               </div>
 
               {/* Edit Skills tags search and select */}

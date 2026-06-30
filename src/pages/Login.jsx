@@ -19,7 +19,8 @@ import {
   Check, 
   Sparkles, 
   Cloud, 
-  Briefcase 
+  Briefcase,
+  Phone
 } from 'lucide-react'
 
 const PREDEFINED_SKILLS = [
@@ -73,6 +74,15 @@ const PREDEFINED_SKILLS = [
   'PostgreSQL'
 ]
 
+const REGIONS = [
+  { code: '+91', country: 'India', digits: 10, placeholder: '9876543210' },
+  { code: '+1', country: 'US/Canada', digits: 10, placeholder: '2015550123' },
+  { code: '+44', country: 'UK', digits: 10, placeholder: '7400123456' },
+  { code: '+61', country: 'Australia', digits: 9, placeholder: '412345678' },
+  { code: '+65', country: 'Singapore', digits: 8, placeholder: '81234567' },
+  { code: '+971', country: 'UAE', digits: 9, placeholder: '501234567' }
+]
+
 const calculateExperience = (joiningDateStr) => {
   if (!joiningDateStr) return '0 months'
   const joinDate = new Date(joiningDateStr)
@@ -113,13 +123,12 @@ export const Login = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  const [showPassword, setShowPassword] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
 
   // Custom Details States
-  const [tcsJoiningDate, setTcsJoiningDate] = useState('')
+  const [phoneRegion, setPhoneRegion] = useState('+91')
+  const [phoneNo, setPhoneNo] = useState('')
   const [rapidJoiningDate, setRapidJoiningDate] = useState('')
   const [workLocation, setWorkLocation] = useState('')
   const [employeeId, setEmployeeId] = useState('')
@@ -193,8 +202,13 @@ export const Login = () => {
 
     if (isSignUp) {
       if (signupStep === 1) {
-        if (!name.trim() || !email.trim() || !password || !confirmPassword || !tcsJoiningDate || !rapidJoiningDate || !workLocation.trim() || !employeeId.trim()) {
+        if (!name.trim() || !email.trim() || !password || !confirmPassword || !phoneNo.trim() || !rapidJoiningDate || !workLocation.trim() || !employeeId.trim()) {
           setError('Please fill in all fields')
+          return
+        }
+        const currentRegion = REGIONS.find(r => r.code === phoneRegion)
+        if (phoneNo.length !== currentRegion.digits) {
+          setError(`Phone number for ${currentRegion.country} must be exactly ${currentRegion.digits} digits long`)
           return
         }
         if (password !== confirmPassword) {
@@ -255,12 +269,11 @@ export const Login = () => {
                 name: name.trim() || email.split('@')[0],
                 skills: selectedSkills.join(','), // CSV string parsed by DB trigger
                 totp_secret: totpSecretObj.hex, // stored in metadata for DB trigger
-                tcs_joining_date: tcsJoiningDate,
                 rapid_joining_date: rapidJoiningDate,
                 work_location: workLocation.trim(),
                 employee_id: employeeId.trim(),
-                tcs_experience: calculateExperience(tcsJoiningDate),
-                rapid_experience: calculateExperience(rapidJoiningDate)
+                rapid_experience: calculateExperience(rapidJoiningDate),
+                phone_number: `${phoneRegion} ${phoneNo}`
               }
             }
           })
@@ -274,7 +287,8 @@ export const Login = () => {
           setEmail('')
           setPassword('')
           setConfirmPassword('')
-          setTcsJoiningDate('')
+          setPhoneRegion('+91')
+          setPhoneNo('')
           setRapidJoiningDate('')
           setWorkLocation('')
           setEmployeeId('')
@@ -387,7 +401,7 @@ export const Login = () => {
               {isSignUp && (
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Full Name
+                    Full Name <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
@@ -408,7 +422,7 @@ export const Login = () => {
               {/* Email Field */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Email Address
+                  Email Address {isSignUp && <span className="text-rose-500">*</span>}
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
@@ -433,7 +447,7 @@ export const Login = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        Employee ID
+                        Employee ID <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -446,36 +460,65 @@ export const Login = () => {
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        Work Location
+                        Work Location <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
                         value={workLocation}
                         onChange={(e) => setWorkLocation(e.target.value)}
                         className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 px-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
-                        placeholder="e.g. Hyderabad"
+                        placeholder="eg. Hyderabad - Synergy park"
                         required={isSignUp}
                       />
                     </div>
                   </div>
 
-                  {/* Joining Dates */}
+                  {/* Phone Number & Rapid Build Joining Date */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        TCS Joining Date
+                        Phone Number <span className="text-rose-500">*</span>
                       </label>
-                      <input
-                        type="date"
-                        value={tcsJoiningDate}
-                        onChange={(e) => setTcsJoiningDate(e.target.value)}
-                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 px-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
-                        required={isSignUp}
-                      />
+                      <div className="flex gap-2">
+                        <select
+                          value={phoneRegion}
+                          onChange={(e) => {
+                            setPhoneRegion(e.target.value)
+                            setPhoneNo('')
+                          }}
+                          className="rounded-xl border border-dark-700 bg-dark-950/80 py-3 px-2 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-xs transition"
+                          required={isSignUp}
+                        >
+                          {REGIONS.map((r) => (
+                            <option key={r.code} value={r.code} className="bg-dark-900 text-white">
+                              {r.code}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="relative flex-1">
+                          <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                            <Phone className="h-3.5 w-3.5" />
+                          </span>
+                          <input
+                            type="tel"
+                            value={phoneNo}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '')
+                              const currentRegion = REGIONS.find(r => r.code === phoneRegion)
+                              if (val.length <= (currentRegion?.digits || 15)) {
+                                setPhoneNo(val)
+                              }
+                            }}
+                            placeholder={REGIONS.find(r => r.code === phoneRegion)?.placeholder || 'Phone number'}
+                            className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-9 pr-3 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
+                            required={isSignUp}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        Rapid Build Joining Date
+                        Rapid Build Joining Date <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="date"
@@ -490,7 +533,7 @@ export const Login = () => {
                   {/* Searchable Skills */}
                   <div className="relative">
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Skills Set
+                      Skills Set <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
@@ -559,7 +602,7 @@ export const Login = () => {
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-                        Password
+                        Password {isSignUp && <span className="text-rose-500">*</span>}
                       </label>
                       {!isSignUp && (
                         <button
@@ -580,55 +623,33 @@ export const Login = () => {
                         <Key className="h-4 w-4" />
                       </span>
                       <input
-                        type={showPassword ? 'text' : 'password'}
+                        type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-11 pr-11 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
+                        className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
                         placeholder="••••••••"
                         required
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-500 hover:text-white transition-colors"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4.5 w-4.5" />
-                        ) : (
-                          <Eye className="h-4.5 w-4.5" />
-                        )}
-                      </button>
                     </div>
                   </div>
 
                   {isSignUp && (
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        Confirm Password
+                        Confirm Password <span className="text-rose-500">*</span>
                       </label>
                       <div className="relative">
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
                           <Key className="h-4 w-4" />
                         </span>
                         <input
-                          type={showConfirmPassword ? 'text' : 'password'}
+                          type="password"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-11 pr-11 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
+                          className="block w-full rounded-xl border border-dark-700 bg-dark-950/80 py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition"
                           placeholder="••••••••"
                           required
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-500 hover:text-white transition-colors"
-                        >
-                          {showConfirmPassword ? (
-                            <EyeOff className="h-4.5 w-4.5" />
-                          ) : (
-                            <Eye className="h-4.5 w-4.5" />
-                          )}
-                        </button>
                       </div>
                     </div>
                   )}
@@ -739,10 +760,10 @@ export const Login = () => {
                 onClick={() => {
                   setIsSignUp(!isSignUp)
                   setConfirmPassword('')
-                  setShowConfirmPassword(false)
                   setError(null)
                   setSuccess(null)
-                  setTcsJoiningDate('')
+                  setPhoneRegion('+91')
+                  setPhoneNo('')
                   setRapidJoiningDate('')
                   setWorkLocation('')
                   setEmployeeId('')

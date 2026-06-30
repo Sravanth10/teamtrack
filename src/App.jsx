@@ -10,7 +10,8 @@ import TeamSpace from './pages/TeamSpace'
 import VerifyOTP from './pages/VerifyOTP'
 import TasksArchive from './pages/TasksArchive'
 import Navbar from './components/Navbar'
-import { Loader, AlertCircle, ShieldAlert, CheckCircle, Clock } from 'lucide-react'
+import UpdatePopup from './components/UpdatePopup'
+import { Loader, AlertCircle, ShieldAlert, CheckCircle, Clock, Compass, Users } from 'lucide-react'
 
 // 1. Root redirector that inspects user session, role, approval status, and TOTP status and sends them to the appropriate dashboard
 const RootRedirector = () => {
@@ -47,18 +48,19 @@ const RootRedirector = () => {
       if (profile.role === 'admin') {
         setRedirectPath('/admin')
       } else {
-        // Member role - Find which team they belong to
+        // Member role - Find which teams they belong to
         setCheckingMembership(true)
         supabase
           .from('team_members')
           .select('team_id')
           .eq('user_id', user.id)
-          .maybeSingle()
           .then(({ data, error }) => {
-            if (error || !data) {
+            if (error || !data || data.length === 0) {
               setRedirectPath('/no-team')
+            } else if (data.length === 1) {
+              setRedirectPath(`/team/${data[0].team_id}`)
             } else {
-              setRedirectPath(`/team/${data.team_id}`)
+              setRedirectPath('/select-team')
             }
             setCheckingMembership(false)
           })
@@ -170,6 +172,97 @@ const AdminRoute = ({ children }) => {
   return children
 }
 
+// Fallback view for members to choose between their allocated teams
+const SelectTeamView = () => {
+  const { user, profile, logout } = useAuth()
+  const [userTeams, setUserTeams] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from('team_members')
+        .select(`
+          team_id,
+          teams (
+            id,
+            name,
+            description,
+            category
+          )
+        `)
+        .eq('user_id', user.id)
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setUserTeams(data.map(m => m.teams).filter(Boolean))
+          }
+          setLoading(false)
+        })
+    }
+  }, [user])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-950 flex justify-center items-center">
+        <Loader className="h-10 w-10 text-brand-500 animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-dark-950 flex flex-col text-slate-200">
+      <nav className="sticky top-0 z-40 w-full border-b border-dark-800 bg-dark-950/80 p-4 flex justify-between items-center">
+        <span className="font-sans text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-brand-300 bg-clip-text text-transparent flex items-center gap-2">
+          <Compass className="h-6 w-6 text-brand-500" />
+          TeamTrack
+        </span>
+        <button 
+          onClick={logout} 
+          className="text-xs text-slate-400 bg-dark-900 border border-dark-800 px-3 py-1.5 rounded-lg hover:text-white transition"
+        >
+          Sign Out
+        </button>
+      </nav>
+      
+      <div className="flex-1 flex flex-col justify-center items-center p-6 max-w-4xl mx-auto w-full space-y-8 my-auto">
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-extrabold text-white tracking-tight">Select Team Space</h2>
+          <p className="text-sm text-slate-400 max-w-md mx-auto">
+            You are assigned to multiple workspaces. Please select which workspace team board you want to access:
+          </p>
+        </div>
+
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 w-full max-w-2xl">
+          {userTeams.map((team) => (
+            <a
+              key={team.id}
+              href={`/team/${team.id}`}
+              className="rounded-2xl border border-dark-800 bg-dark-900 p-6 hover:border-brand-500/30 transition-all shadow-glass flex flex-col justify-between text-left group"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-white group-hover:text-brand-400 transition-colors">
+                    {team.name}
+                  </h3>
+                  <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/20 text-brand-400 capitalize">
+                    {team.category || 'general'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                  {team.description || 'No description provided.'}
+                </p>
+              </div>
+              <div className="pt-4 border-t border-dark-800/40 text-[10px] text-slate-500 flex justify-end font-semibold group-hover:text-white transition-colors">
+                Enter Team Board &rarr;
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // 5. Fallback view for members who signed up but are not yet added to any team space
 const NoTeamView = () => {
   const { logout, profile } = useAuth()
@@ -248,8 +341,8 @@ const PendingApprovalView = () => {
                 <span className="text-slate-200 font-semibold">{profile.work_location || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-xs text-slate-505 block">TCS Experience</span>
-                <span className="text-slate-200 font-medium">{profile.tcs_experience || 'N/A'} <span className="text-slate-500 text-[10px]">({profile.tcs_joining_date || 'N/A'})</span></span>
+                <span className="text-xs text-slate-505 block">Phone Number</span>
+                <span className="text-slate-200 font-semibold">{profile.phone_number || 'N/A'}</span>
               </div>
               <div>
                 <span className="text-xs text-slate-505 block">Rapid Build Experience</span>
@@ -336,6 +429,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <UpdatePopup />
         <Routes>
           {/* Public login/register page */}
           <Route path="/login" element={<Login />} />
@@ -368,6 +462,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <NoTeamView />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* Team Selection for users assigned to multiple teams */}
+          <Route 
+            path="/select-team" 
+            element={
+              <ProtectedRoute>
+                <SelectTeamView />
               </ProtectedRoute>
             } 
           />

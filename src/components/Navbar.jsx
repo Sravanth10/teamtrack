@@ -1,12 +1,44 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { LogOut, User, Compass, Sun, Moon, QrCode, ShieldCheck, X, Loader } from 'lucide-react'
+import { LogOut, User, Compass, Sun, Moon, QrCode, ShieldCheck, X, Loader, Users, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import * as OTPAuth from 'otpauth'
+import { ProfileModal } from './ProfileModal'
 
 export const Navbar = () => {
   const { profile, logout, refreshProfile } = useAuth()
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
+  
+  // Allocated teams switcher states
+  const [userTeams, setUserTeams] = useState([])
+  const [loadingTeams, setLoadingTeams] = useState(false)
+  const [isTeamsDropdownOpen, setIsTeamsDropdownOpen] = useState(false)
+  
+  // User profile modal state
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (profile && profile.role === 'member') {
+      setLoadingTeams(true)
+      supabase
+        .from('team_members')
+        .select(`
+          team_id,
+          teams (
+            id,
+            name,
+            category
+          )
+        `)
+        .eq('user_id', profile.id)
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setUserTeams(data.map(m => m.teams).filter(Boolean))
+          }
+          setLoadingTeams(false)
+        })
+    }
+  }, [profile])
   
   // MFA Enrollment Modal states
   const [isMfaModalOpen, setIsMfaModalOpen] = useState(false)
@@ -114,14 +146,48 @@ export const Navbar = () => {
       <nav className="sticky top-0 z-40 w-full border-b border-dark-800 bg-dark-950/80 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 text-white shadow-glow-brand animate-pulse">
-                <Compass className="h-6 w-6" />
-              </div>
-              <span className="font-sans text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-brand-300 bg-clip-text text-transparent">
-                TeamTrack
-              </span>
+            {/* Logo & Switcher */}
+            <div className="flex items-center gap-4">
+              <a href="/" className="flex items-center gap-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 text-white shadow-glow-brand animate-pulse">
+                  <Compass className="h-6 w-6" />
+                </div>
+                <span className="font-sans text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-brand-300 bg-clip-text text-transparent">
+                  TeamTrack
+                </span>
+              </a>
+
+              {/* Team Workspace Switcher for Members */}
+              {profile && profile.role === 'member' && userTeams.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setIsTeamsDropdownOpen(!isTeamsDropdownOpen)}
+                    className="flex items-center gap-1.5 rounded-lg bg-dark-900 border border-dark-700 px-3 py-1.5 text-xs font-semibold text-slate-350 hover:text-white transition-all duration-200 hover:border-slate-600"
+                  >
+                    <Users className="h-3.5 w-3.5 text-brand-400" />
+                    <span>My Team Spaces ({userTeams.length})</span>
+                    <ChevronDown className={`h-3 w-3 text-slate-500 transition-transform ${isTeamsDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isTeamsDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsTeamsDropdownOpen(false)} />
+                      <div className="absolute left-0 z-50 mt-2 w-64 rounded-xl border border-dark-800 bg-dark-900 p-2 shadow-2xl space-y-1">
+                        {userTeams.map(t => (
+                          <a
+                            key={t.id}
+                            href={`/team/${t.id}`}
+                            onClick={() => setIsTeamsDropdownOpen(false)}
+                            className="block rounded-lg px-3 py-2 text-xs text-slate-200 hover:bg-dark-800 hover:text-white transition font-sans font-semibold text-left"
+                          >
+                            <span className="block truncate">{t.name}</span>
+                            <span className="text-[9px] uppercase font-bold text-brand-400 mt-0.5 block">{t.category || 'General'}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* User Section */}
@@ -162,6 +228,16 @@ export const Navbar = () => {
                     Enable MFA
                   </button>
                 )}
+
+                {/* Profile Button */}
+                <button
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-dark-900 border border-dark-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-dark-800 hover:text-white hover:border-slate-500 focus:outline-none"
+                  title="My Profile"
+                >
+                  <User className="h-4 w-4 text-brand-400" />
+                  <span className="hidden md:inline">My Profile</span>
+                </button>
 
                 {/* Theme Toggle */}
                 <button
@@ -292,6 +368,12 @@ export const Navbar = () => {
           </div>
         </div>
       )}
+
+      {/* User Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+      />
     </>
   )
 }
