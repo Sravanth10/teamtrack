@@ -11,6 +11,8 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
   const [status, setStatus] = useState(task.status)
   const [notes, setNotes] = useState([])
   const [newNote, setNewNote] = useState('')
+  const [editingNoteId, setEditingNoteId] = useState(null)
+  const [editingNoteText, setEditingNoteText] = useState('')
   const [taskDate, setTaskDate] = useState(new Date().toISOString().split('T')[0])
   const [deadline, setDeadline] = useState(task.deadline ? new Date(task.deadline).toISOString().split('T')[0] : '')
   const [isSubmittingNote, setIsSubmittingNote] = useState(false)
@@ -112,8 +114,16 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
     }
   }
 
+  const isCreator = task.created_by === profile?.id
+  const isAdmin = profile?.role === 'admin'
+  const canEdit = !isReadOnly && (isAdmin || isCreator)
+
   const handleSaveTask = async (e) => {
     e.preventDefault()
+    if (!canEdit) {
+      setError('You are not authorized to edit this task.')
+      return
+    }
     if (!title.trim()) {
       setError('Title is required')
       return
@@ -185,6 +195,10 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
   }
 
   const handleDeleteTask = async () => {
+    if (!canEdit) {
+      setError('You are not authorized to delete this task.')
+      return
+    }
     if (!window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
       return
     }
@@ -199,6 +213,37 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       onTaskDeleted(task.id)
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  const handleUpdateNote = async (noteId, newText) => {
+    if (!newText.trim()) return
+    try {
+      const { error } = await supabase
+        .from('task_updates')
+        .update({ note: newText.trim() })
+        .eq('id', noteId)
+
+      if (error) throw error
+      setEditingNoteId(null)
+      fetchNotes()
+    } catch (err) {
+      alert('Failed to update note: ' + err.message)
+    }
+  }
+
+  const handleDeleteNote = async (noteId) => {
+    if (!window.confirm('Are you sure you want to delete this progress note update?')) return
+    try {
+      const { error } = await supabase
+        .from('task_updates')
+        .delete()
+        .eq('id', noteId)
+
+      if (error) throw error
+      fetchNotes()
+    } catch (err) {
+      alert('Failed to delete note: ' + err.message)
     }
   }
 
@@ -226,6 +271,11 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
       setIsSubmittingNote(false)
     }
   }
+
+  const canAddNote = !isReadOnly && (isAdmin || isCreator)
+  const visibleNotes = (task.users?.role === 'admin' && profile?.role === 'member')
+    ? notes.filter(n => n.users?.role === 'admin')
+    : notes
 
   if (!isOpen) return null
 
@@ -432,7 +482,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                 </div>
                 
                 {/* Control Action Buttons */}
-                {!isReadOnly && (
+                {canEdit && (
                    <div className="flex items-center gap-2">
                      <button
                        onClick={() => setIsEditing(true)}
@@ -478,7 +528,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
             </h4>
 
             {/* Note Input */}
-            {!isReadOnly ? (
+            {canAddNote ? (
               <form onSubmit={handleAddNote} className="mb-6">
                 <div className="flex gap-2">
                   <textarea
@@ -502,9 +552,13 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                   </button>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1.5 italic">
-                  * Note: Daily updates are immutable logs and cannot be edited or deleted once saved.
+                  * Note: Daily update notes can be edited or deleted by their author or system administrators.
                 </p>
               </form>
+            ) : (!isCreator && profile?.role === 'member') ? (
+              <div className="rounded-xl border border-dark-800 bg-dark-950/45 p-4 text-center text-xs text-slate-400 mb-6 italic">
+                🔒 Read-Only: Standard members can only view others' tasks and cannot add notes or modify them.
+              </div>
             ) : (
               <div className="rounded-xl border border-dark-800 bg-dark-950/40 p-4 text-center text-xs text-slate-400 mb-6 italic">
                 🌴 Board Locked: You cannot append daily updates while marked as On Leave.
@@ -513,61 +567,115 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
 
             {/* Notes List */}
             <div className="space-y-3.5 max-h-60 overflow-y-auto pr-1">
-              {notes.length === 0 ? (
+              {visibleNotes.length === 0 ? (
                 <div className="rounded-lg bg-dark-950 border border-dashed border-dark-800 p-6 text-center text-slate-500 text-sm">
                   No daily notes have been posted on this task yet.
                 </div>
               ) : (
-                notes.map((n) => {
+                visibleNotes.map((n) => {
                   const noteDate = new Date(n.created_at).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit'
                   })
-                                   const milestoneObj = milestones.find(m => m.task_update_id === n.id)
-                   const isMilestone = !!milestoneObj
+                  const milestoneObj = milestones.find(m => m.task_update_id === n.id)
+                  const isMilestone = !!milestoneObj
+                  const isAuthor = n.user_id === profile?.id
+                  const isAdmin = profile?.role === 'admin'
+                  const canManageNote = isAuthor || isAdmin
 
-                   return (
-                     <div key={n.id} className="rounded-xl border border-dark-800 bg-dark-950/40 p-3.5 space-y-1.5">
-                       <div className="flex items-center justify-between text-xs">
-                         <span className="font-semibold text-slate-300">
-                           {n.users?.name || n.users?.email || 'Anonymous'}
-                           <span className={`ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.25 rounded-md ${
-                             n.users?.role === 'admin' 
-                               ? 'bg-rose-500/10 text-rose-400' 
-                               : 'bg-emerald-500/10 text-emerald-400'
-                           }`}>
-                             {n.users?.role}
-                           </span>
-                         </span>
-                         
-                         <div className="flex items-center gap-3">
-                           {/* Milestone/Star button - visible to Admins only */}
-                           {profile?.role === 'admin' && (
-                             <button
-                               onClick={() => handleMarkMilestone(n.id, milestoneObj?.milestone_description)}
-                               className={`flex items-center gap-1 p-1 rounded-md transition-colors ${
-                                 isMilestone 
-                                   ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
-                                   : 'text-slate-500 hover:text-white bg-dark-900/50 hover:bg-dark-800'
-                               }`}
-                               title={isMilestone ? `Milestone: ${milestoneObj.milestone_description}` : "Mark as Milestone"}
-                             >
-                               <Star className={`h-3.5 w-3.5 ${isMilestone ? 'fill-current' : ''}`} />
-                             </button>
-                           )}
-                           <span className="text-slate-505 flex items-center gap-1">
-                             <Clock className="h-3 w-3" />
-                             {noteDate}
-                           </span>
-                         </div>
-                       </div>
-                       <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-                         {n.note}
-                       </p>
-                     </div>
-                    )
+                  return (
+                    <div key={n.id} className="rounded-xl border border-dark-800 bg-dark-950/40 p-3.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-slate-300">
+                          {n.users?.name || n.users?.email || 'Anonymous'}
+                          <span className={`ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.25 rounded-md ${
+                            n.users?.role === 'admin' 
+                              ? 'bg-rose-500/10 text-rose-400' 
+                              : 'bg-emerald-500/10 text-emerald-400'
+                          }`}>
+                            {n.users?.role}
+                          </span>
+                        </span>
+                        
+                        <div className="flex items-center gap-3">
+                          {/* Milestone/Star button - visible to Admins only */}
+                          {profile?.role === 'admin' && (
+                            <button
+                              onClick={() => handleMarkMilestone(n.id, milestoneObj?.milestone_description)}
+                              className={`flex items-center gap-1 p-1 rounded-md transition-colors ${
+                                isMilestone 
+                                  ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
+                                  : 'text-slate-500 hover:text-white bg-dark-900/50 hover:bg-dark-800'
+                              }`}
+                              title={isMilestone ? `Milestone: ${milestoneObj.milestone_description}` : "Mark as Milestone"}
+                            >
+                              <Star className={`h-3.5 w-3.5 ${isMilestone ? 'fill-current' : ''}`} />
+                            </button>
+                          )}
+
+                          {/* Edit/Delete buttons - visible to author/admin when not read-only */}
+                          {canManageNote && !isReadOnly && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  setEditingNoteId(n.id)
+                                  setEditingNoteText(n.note)
+                                }}
+                                className="text-slate-505 hover:text-white p-1 rounded-md transition-colors bg-dark-900/50 hover:bg-dark-800"
+                                title="Edit Update Note"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteNote(n.id)}
+                                className="text-slate-505 hover:text-rose-400 p-1 rounded-md transition-colors bg-dark-900/50 hover:bg-dark-800"
+                                title="Delete Update Note"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+
+                          <span className="text-slate-505 flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {noteDate}
+                          </span>
+                        </div>
+                      </div>
+
+                      {editingNoteId === n.id ? (
+                        <div className="space-y-2 pt-1">
+                          <textarea
+                            value={editingNoteText}
+                            onChange={(e) => setEditingNoteText(e.target.value)}
+                            className="w-full rounded-lg border border-dark-700 bg-dark-900 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none resize-none h-16"
+                            required
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => handleUpdateNote(n.id, editingNoteText)}
+                              className="flex items-center gap-1 rounded bg-brand-500 hover:bg-brand-650 text-white font-semibold text-xs px-2.5 py-1 transition"
+                            >
+                              <Check className="h-3 w-3" />
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingNoteId(null)}
+                              className="flex items-center gap-1 rounded bg-dark-800 hover:bg-dark-750 text-slate-450 hover:text-white text-xs px-2.5 py-1 transition"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
+                          {n.note}
+                        </p>
+                      )}
+                    </div>
+                  )
                 })
               )}
             </div>

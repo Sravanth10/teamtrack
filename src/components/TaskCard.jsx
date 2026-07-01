@@ -1,7 +1,7 @@
 import React from 'react'
 import { Calendar, ArrowRight, CheckCircle2, Play, CircleAlert, Pause } from 'lucide-react'
 
-export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
+export const TaskCard = ({ task, onUpdateStatus, onClick, canMove = true }) => {
   const { title, description, status, created_at, deadline } = task
 
   // Determine if task is overdue
@@ -127,33 +127,35 @@ export const TaskCard = ({ task, onUpdateStatus, onClick }) => {
         </div>
 
         {/* Quick status transition actions */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Move Status</span>
-          <div className="flex flex-wrap gap-1.5">
-            {allStatuses.map((st) => {
-              if (st === status) return null
-              
-              const btnStyles = {
-                'To Do': 'hover:bg-slate-500/20 hover:text-slate-200 text-slate-400 border-slate-700',
-                'In Progress': 'hover:bg-amber-500/20 hover:text-amber-200 text-amber-400 border-slate-700',
-                'Blocked': 'hover:bg-rose-500/20 hover:text-rose-200 text-rose-400 border-slate-700',
-                'Done': 'hover:bg-emerald-500/20 hover:text-emerald-200 text-emerald-400 border-slate-700'
-              }
+        {canMove && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Move Status</span>
+            <div className="flex flex-wrap gap-1.5">
+              {allStatuses.map((st) => {
+                if (st === status) return null
+                
+                const btnStyles = {
+                  'To Do': 'hover:bg-slate-500/20 hover:text-slate-200 text-slate-400 border-slate-700',
+                  'In Progress': 'hover:bg-amber-500/20 hover:text-amber-200 text-amber-400 border-slate-700',
+                  'Blocked': 'hover:bg-rose-500/20 hover:text-rose-200 text-rose-400 border-slate-700',
+                  'Done': 'hover:bg-emerald-500/20 hover:text-emerald-200 text-emerald-400 border-slate-700'
+                }
 
-              return (
-                <button
-                  key={st}
-                  onClick={(e) => handleStatusClick(e, st)}
-                  className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold border bg-dark-950 transition-all duration-200 ${btnStyles[st]}`}
-                  title={`Move to ${st}`}
-                >
-                  {getStatusIcon(st)}
-                  <span>{st}</span>
-                </button>
-              )
-            })}
+                return (
+                  <button
+                    key={st}
+                    onClick={(e) => handleStatusClick(e, st)}
+                    className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold border bg-dark-950 transition-all duration-200 ${btnStyles[st]}`}
+                    title={`Move to ${st}`}
+                  >
+                    {getStatusIcon(st)}
+                    <span>{st}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

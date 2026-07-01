@@ -21,6 +21,8 @@ export const ProfileModal = ({ isOpen, onClose }) => {
   const [phoneNo, setPhoneNo] = useState('')
   const [skills, setSkills] = useState([])
   const [newSkill, setNewSkill] = useState('')
+  const [employeeId, setEmployeeId] = useState('')
+  const [rapidJoiningDate, setRapidJoiningDate] = useState('')
   
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -30,6 +32,8 @@ export const ProfileModal = ({ isOpen, onClose }) => {
     if (isOpen && profile) {
       setLocation(profile.work_location || '')
       setSkills(profile.skills || [])
+      setEmployeeId(profile.employee_id || '')
+      setRapidJoiningDate(profile.rapid_joining_date ? new Date(profile.rapid_joining_date).toISOString().split('T')[0] : '')
       
       // Parse phone number
       const fullPhone = profile.phone_number || ''
@@ -75,6 +79,16 @@ export const ProfileModal = ({ isOpen, onClose }) => {
       return
     }
 
+    if (!employeeId.trim()) {
+      setError('Employee ID is required.')
+      return
+    }
+
+    if (!rapidJoiningDate) {
+      setError('Rapid Build Joining Date is required.')
+      return
+    }
+
     if (skills.length === 0) {
       setError('At least one skill must be added to your profile.')
       return
@@ -88,7 +102,9 @@ export const ProfileModal = ({ isOpen, onClose }) => {
         .update({
           phone_number: formattedPhone,
           work_location: location.trim(),
-          skills: skills
+          skills: skills,
+          employee_id: employeeId.trim(),
+          rapid_joining_date: rapidJoiningDate || null
         })
         .eq('id', profile.id)
 
@@ -152,22 +168,47 @@ export const ProfileModal = ({ isOpen, onClose }) => {
           {/* Read Only Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl bg-dark-950/50 border border-dark-850 p-4 text-xs">
             <div>
-              <span className="text-slate-500 block mb-0.5">Full Name</span>
+              <span className="text-slate-505 block mb-0.5">Full Name</span>
               <span className="text-slate-300 font-semibold">{profile?.name || 'N/A'}</span>
             </div>
             <div>
-              <span className="text-slate-500 block mb-0.5">Email Address</span>
+              <span className="text-slate-505 block mb-0.5">Email Address</span>
               <span className="text-slate-300 font-semibold font-mono">{profile?.email || 'N/A'}</span>
             </div>
-            <div>
-              <span className="text-slate-500 block mb-0.5">Employee ID</span>
-              <span className="text-slate-300 font-semibold font-mono">{profile?.employee_id || 'N/A'}</span>
-            </div>
-            <div>
-              <span className="text-slate-505 block mb-0.5">Rapid Build Experience</span>
+            <div className="col-span-2">
+              <span className="text-slate-550 block mb-0.5">Rapid Build Experience</span>
               <span className="text-slate-300 font-medium">
-                {profile?.rapid_experience || 'N/A'} <span className="text-[10px] text-slate-500">({profile?.rapid_joining_date || 'N/A'})</span>
+                {profile?.rapid_experience || 'N/A'}
               </span>
+            </div>
+          </div>
+
+          {/* Editable field: Employee ID & Rapid Build Joining Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                Employee ID <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={employeeId}
+                onChange={(e) => setEmployeeId(e.target.value)}
+                placeholder="Employee ID"
+                className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                Rapid Build Joining Date <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={rapidJoiningDate}
+                onChange={(e) => setRapidJoiningDate(e.target.value)}
+                className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
+                required
+              />
             </div>
           </div>
 

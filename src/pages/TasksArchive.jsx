@@ -143,6 +143,13 @@ export const TasksArchive = () => {
   }, [profile, authLoading, navigate])
 
   const handleUpdateStatus = async (taskId, newStatus) => {
+    // Prevent members from changing status of tasks they did not create
+    const targetTask = tasks.find(t => t.id === taskId)
+    if (targetTask && profile?.role === 'member' && targetTask.created_by !== profile.id) {
+      alert('You are not authorized to update status on tasks created by other users.')
+      return
+    }
+
     try {
       const { error: updateErr } = await supabase
         .from('tasks')
@@ -264,6 +271,7 @@ export const TasksArchive = () => {
                   task={task}
                   onUpdateStatus={handleUpdateStatus}
                   onClick={() => handleTaskClick(task)}
+                  canMove={profile?.role === 'admin' || task.created_by === profile?.id}
                 />
               ))}
             </div>
