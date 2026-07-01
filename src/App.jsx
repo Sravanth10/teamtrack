@@ -11,6 +11,7 @@ import VerifyOTP from './pages/VerifyOTP'
 import TasksArchive from './pages/TasksArchive'
 import Navbar from './components/Navbar'
 import UpdatePopup from './components/UpdatePopup'
+import InstructionsPopup from './components/InstructionsPopup'
 import { Loader, AlertCircle, ShieldAlert, CheckCircle, Clock, Compass, Users } from 'lucide-react'
 
 // 1. Root redirector that inspects user session, role, approval status, and TOTP status and sends them to the appropriate dashboard
@@ -429,7 +430,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <UpdatePopup />
+        <InstructionsPopup />
         <Routes>
           {/* Public login/register page */}
           <Route path="/login" element={<Login />} />
