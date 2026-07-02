@@ -115,7 +115,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
   }
 
   const isCreator = task.created_by === profile?.id
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'supervisor'
   const canEdit = !isReadOnly && (isAdmin || isCreator)
 
   const handleSaveTask = async (e) => {
@@ -582,7 +582,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                   const milestoneObj = milestones.find(m => m.task_update_id === n.id)
                   const isMilestone = !!milestoneObj
                   const isAuthor = n.user_id === profile?.id
-                  const isAdmin = profile?.role === 'admin'
+                  const isAdmin = profile?.role === 'admin' || profile?.role === 'supervisor'
                   const canManageNote = isAuthor || isAdmin
 
                   return (
