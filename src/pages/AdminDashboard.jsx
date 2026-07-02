@@ -432,22 +432,23 @@ export const AdminDashboard = () => {
   const fetchMilestones = async () => {
     setMilestonesLoading(true)
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('milestones')
         .select(`
           id,
           milestone_description,
           created_at,
-          tasks (
+          tasks!inner (
             id,
             title,
             description,
             status,
             created_at,
             deadline,
-            teams (
+            teams!inner (
               id,
-              name
+              name,
+              lab_id
             )
           ),
           task_updates (
@@ -462,6 +463,21 @@ export const AdminDashboard = () => {
           )
         `)
         .order('created_at', { ascending: false })
+
+      if (isSupervisorView && labId) {
+        query = query.eq('tasks.teams.lab_id', labId)
+      } else if (!isSupervisor) {
+        const { data: assignments } = await supabase
+          .from('lab_admins')
+          .select('lab_id')
+          .eq('user_id', profile?.id)
+        if (assignments && assignments.length > 0) {
+          const assignedLabIds = assignments.map(a => a.lab_id)
+          query = query.in('tasks.teams.lab_id', assignedLabIds)
+        }
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
       setMilestones(data || [])

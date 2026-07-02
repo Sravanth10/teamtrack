@@ -601,7 +601,7 @@ export const TaskDetailsModal = ({ task, isOpen, onClose, onTaskUpdated, onTaskD
                         
                         <div className="flex items-center gap-3">
                           {/* Milestone/Star button - visible to Admins only */}
-                          {profile?.role === 'admin' && (
+                          {isAdmin && (
                             <button
                               onClick={() => handleMarkMilestone(n.id, milestoneObj?.milestone_description)}
                               className={`flex items-center gap-1 p-1 rounded-md transition-colors ${
