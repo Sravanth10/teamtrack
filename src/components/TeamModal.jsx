@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { X, Plus, UserMinus, UserPlus, Users, Loader } from 'lucide-react'
 
-export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
+export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('general')
@@ -125,7 +125,8 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved }) => {
             name: name.trim(),
             description: description.trim(),
             category: category.toLowerCase().trim(),
-            created_by: user.id
+            created_by: user.id,
+            lab_id: labId
           })
 
         if (insertErr) throw insertErr

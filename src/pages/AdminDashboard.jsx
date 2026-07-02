@@ -139,6 +139,8 @@ export const AdminDashboard = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   
+  const [currentLabId, setCurrentLabId] = useState(null)
+  
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -496,6 +498,16 @@ export const AdminDashboard = () => {
         .eq('id', labId)
         .single()
       if (labData) setLabName(labData.name)
+      setCurrentLabId(labId)
+    } else if (!isSupervisor) {
+      // Fetch assigned lab for admin
+      const { data: assignments } = await supabase
+        .from('lab_admins')
+        .select('lab_id')
+        .eq('user_id', profile?.id)
+      if (assignments && assignments.length > 0) {
+        setCurrentLabId(assignments[0].lab_id)
+      }
     }
     await Promise.all([fetchTeams(), fetchPendingUsers(), fetchMilestones()])
     setLoading(false)
@@ -1690,6 +1702,7 @@ export const AdminDashboard = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSaved={fetchTeams}
+        labId={currentLabId}
       />
 
       {/* Edit Profile Modal */}

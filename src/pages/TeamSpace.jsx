@@ -61,7 +61,7 @@ export const TeamSpace = () => {
 
     try {
       // 1. Verify access permissions
-      if (profile.role !== 'admin') {
+      if (profile.role !== 'admin' && profile.role !== 'supervisor') {
         const { data: membership, error: memErr } = await supabase
           .from('team_members')
           .select('id')
@@ -346,16 +346,16 @@ export const TeamSpace = () => {
           <p className="text-sm text-slate-400 mt-2 max-w-md">
             You do not have permission to access this team space. If you think this is a mistake, contact your administrator.
           </p>
-          {profile.role === 'admin' ? (
+          {profile.role === 'admin' || profile.role === 'supervisor' ? (
             <button
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate(profile.role === 'supervisor' ? -1 : '/admin')}
               className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-655 transition"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard
             </button>
           ) : (
-            <div className="text-xs text-slate-500 mt-6 italic">
+            <div className="text-xs text-slate-505 mt-6 italic">
               Logged in as {profile.email}
             </div>
           )}
@@ -374,9 +374,9 @@ export const TeamSpace = () => {
         {/* Navigation & Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-dark-800 pb-4">
           <div className="flex items-center gap-3">
-            {profile.role === 'admin' && (
+            {(profile.role === 'admin' || profile.role === 'supervisor') && (
               <button
-                onClick={() => navigate('/admin')}
+                onClick={() => navigate(profile.role === 'supervisor' ? -1 : '/admin')}
                 className="rounded-xl border border-dark-800 bg-dark-900 p-2.5 text-slate-400 hover:bg-dark-800 hover:text-white transition"
                 title="Back to Dashboard"
               >

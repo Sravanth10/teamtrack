@@ -70,7 +70,7 @@ export const TasksArchive = () => {
 
     try {
       // 1. Verify access permissions
-      if (profile.role !== 'admin') {
+      if (profile.role !== 'admin' && profile.role !== 'supervisor') {
         const { data: membership, error: memberErr } = await supabase
           .from('team_members')
           .select('id')
