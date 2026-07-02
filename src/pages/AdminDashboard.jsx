@@ -10,6 +10,7 @@ import {
   Settings, 
   Trash2, 
   ChevronRight, 
+  ChevronDown,
   CheckCircle, 
   Clock, 
   AlertOctagon, 
@@ -177,6 +178,10 @@ export const AdminDashboard = () => {
   const [engagedCandidates, setEngagedCandidates] = useState([])
   const [nonEngagedCandidates, setNonEngagedCandidates] = useState([])
   const [overviewLoading, setOverviewLoading] = useState(false)
+  const [isEngagedCollapsed, setIsEngagedCollapsed] = useState(false)
+  const [isNonEngagedCollapsed, setIsNonEngagedCollapsed] = useState(false)
+  const [isGeneralTeamsCollapsed, setIsGeneralTeamsCollapsed] = useState(false)
+  const [isSpecificTeamsCollapsed, setIsSpecificTeamsCollapsed] = useState(false)
 
   const handleExportCSV = async () => {
     setExporting(true)
@@ -346,7 +351,7 @@ export const AdminDashboard = () => {
 
       if (usersErr) throw usersErr
 
-      // 2. Fetch all team memberships with their team category
+      // 2. Fetch all team memberships with their team category and lab
       const { data: allMemberships, error: memErr } = await supabase
         .from('team_members')
         .select(`
@@ -357,11 +362,26 @@ export const AdminDashboard = () => {
           teams (
             id,
             name,
-            category
+            category,
+            lab_id
           )
         `)
 
       if (memErr) throw memErr
+
+      // Determine target lab filter
+      let targetLabIds = null
+      if (isSupervisorView && labId) {
+        targetLabIds = [labId]
+      } else if (!isSupervisor) {
+        const { data: assignments } = await supabase
+          .from('lab_admins')
+          .select('lab_id')
+          .eq('user_id', profile?.id)
+        if (assignments && assignments.length > 0) {
+          targetLabIds = assignments.map(a => a.lab_id)
+        }
+      }
 
       // 3. Process and classify candidates
       const engaged = []
@@ -369,12 +389,17 @@ export const AdminDashboard = () => {
 
       if (allUsers && allUsers.length > 0) {
         allUsers.forEach(user => {
-          const userMemberships = (allMemberships || []).filter(m => 
-            m.user_id === user.id || m.email.toLowerCase() === user.email.toLowerCase()
-          )
+          const userMemberships = (allMemberships || []).filter(m => {
+            const matchesUser = m.user_id === user.id || m.email.toLowerCase() === user.email.toLowerCase()
+            if (!matchesUser) return false
+            if (targetLabIds) {
+              return targetLabIds.includes(m.teams?.lab_id)
+            }
+            return true
+          })
 
           if (userMemberships.length === 0) {
-            // Unassigned: not in any teams, exclude
+            // Unassigned: not in any teams for this lab scope, exclude
             return
           }
 
@@ -842,6 +867,121 @@ export const AdminDashboard = () => {
     }
   }
 
+  const generalTeams = teams.filter(t => (t.category || '').toLowerCase().trim() === 'general')
+  const specificTeams = teams.filter(t => (t.category || '').toLowerCase().trim() !== 'general')
+
+  const renderTeamCard = (team) => {
+    const memberCount = team.team_members?.length || 0
+    const tasksList = team.tasks || []
+    
+    const todoCount = tasksList.filter(t => t.status === 'To Do').length
+    const progressCount = tasksList.filter(t => t.status === 'In Progress').length
+    const blockedCount = tasksList.filter(t => t.status === 'Blocked').length
+    const doneCount = tasksList.filter(t => t.status === 'Done').length
+    const totalTasks = tasksList.length
+
+    return (
+      <div
+        key={team.id}
+        onClick={() => handleCardClick(team.id)}
+        className="group relative flex flex-col justify-between rounded-2xl border border-dark-800 bg-dark-900 p-6 shadow-glass hover:border-brand-500/30 hover:shadow-glass-hover hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+      >
+        <div>
+          {/* Title Block */}
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-sans text-lg font-bold text-white transition-colors group-hover:text-brand-300">
+              {team.name}
+            </h3>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => handleEditClick(e, team)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-dark-800 hover:text-white transition"
+                title="Edit team & members"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => handleDeleteClick(e, team.id)}
+                className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-500/10 transition"
+                title="Delete team"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Description */}
+          {team.description ? (
+            <p className="font-sans text-sm text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+              {team.description}
+            </p>
+          ) : (
+            <p className="font-sans text-sm text-slate-605 italic mt-2">
+              No description provided.
+            </p>
+          )}
+        </div>
+
+        {/* Stats & KPI Grid */}
+        <div className="mt-6 pt-5 border-t border-dark-800/80 space-y-4">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="h-4 w-4 text-brand-400" />
+              Membership
+            </span>
+            <span className="font-bold text-white bg-dark-950 px-2 py-0.5 rounded-full border border-dark-850">
+              {memberCount} {memberCount === 1 ? 'member' : 'members'}
+            </span>
+          </div>
+
+          {/* Task metrics breakdown */}
+          <div className="space-y-2">
+            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">
+              Tasks ({totalTasks})
+            </span>
+            
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <CircleDot className="h-3 w-3 text-slate-400" />
+                  To Do
+                </span>
+                <span className="font-bold text-white">{todoCount}</span>
+              </div>
+              <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
+                <span className="text-amber-400 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  In Progress
+                </span>
+                <span className="font-bold text-white">{progressCount}</span>
+              </div>
+              <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
+                <span className="text-rose-400 flex items-center gap-1">
+                  <AlertOctagon className="h-3 w-3" />
+                  Blocked
+                </span>
+                <span className="font-bold text-white">{blockedCount}</span>
+              </div>
+              <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
+                <span className="text-emerald-405 flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-emerald-400" />
+                  Done
+                </span>
+                <span className="font-bold text-white">{doneCount}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* View Arrow */}
+          <div className="flex justify-end text-xs font-bold text-brand-400 group-hover:text-brand-300 transition-colors items-center gap-0.5">
+            <span>Enter Team Space</span>
+            <ChevronRight className="h-4 w-4" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-dark-950 flex flex-col">
       <Navbar />
@@ -998,118 +1138,60 @@ export const AdminDashboard = () => {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {teams.map((team) => {
-                      const memberCount = team.team_members?.length || 0
-                      const tasksList = team.tasks || []
-                      
-                      const todoCount = tasksList.filter(t => t.status === 'To Do').length
-                      const progressCount = tasksList.filter(t => t.status === 'In Progress').length
-                      const blockedCount = tasksList.filter(t => t.status === 'Blocked').length
-                      const doneCount = tasksList.filter(t => t.status === 'Done').length
-                      const totalTasks = tasksList.length
-
-                      return (
-                        <div
-                          key={team.id}
-                          onClick={() => handleCardClick(team.id)}
-                          className="group relative flex flex-col justify-between rounded-2xl border border-dark-800 bg-dark-900 p-6 shadow-glass hover:border-brand-500/30 hover:shadow-glass-hover hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                  <div className="space-y-8">
+                    {/* General Teams Section */}
+                    {generalTeams.length > 0 && (
+                      <div className="space-y-4">
+                        <button
+                          onClick={() => setIsGeneralTeamsCollapsed(!isGeneralTeamsCollapsed)}
+                          className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
                         >
-                          <div>
-                            {/* Title Block */}
-                            <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-sans text-lg font-bold text-white transition-colors group-hover:text-brand-300">
-                                {team.name}
-                              </h3>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={(e) => handleEditClick(e, team)}
-                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-dark-800 hover:text-white transition"
-                                  title="Edit team & members"
-                                >
-                                  <Settings className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => handleDeleteClick(e, team.id)}
-                                  className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-500/10 transition"
-                                  title="Delete team"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Description */}
-                            {team.description ? (
-                              <p className="font-sans text-sm text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                                {team.description}
-                              </p>
-                            ) : (
-                              <p className="font-sans text-sm text-slate-605 italic mt-2">
-                                No description provided.
-                              </p>
-                            )}
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-brand-400" />
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                              General Team Spaces ({generalTeams.length})
+                            </h3>
                           </div>
-
-                          {/* Stats & KPI Grid */}
-                          <div className="mt-6 pt-5 border-t border-dark-800/80 space-y-4">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1.5">
-                                <Users className="h-4 w-4 text-brand-400" />
-                                Membership
-                              </span>
-                              <span className="font-bold text-white bg-dark-950 px-2 py-0.5 rounded-full border border-dark-850">
-                                {memberCount} {memberCount === 1 ? 'member' : 'members'}
-                              </span>
-                            </div>
-
-                            {/* Task metrics breakdown */}
-                            <div className="space-y-2">
-                              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">
-                                Tasks ({totalTasks})
-                              </span>
-                              
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
-                                  <span className="text-slate-400 flex items-center gap-1">
-                                    <CircleDot className="h-3 w-3 text-slate-400" />
-                                    To Do
-                                  </span>
-                                  <span className="font-bold text-white">{todoCount}</span>
-                                </div>
-                                <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
-                                  <span className="text-amber-400 flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    In Progress
-                                  </span>
-                                  <span className="font-bold text-white">{progressCount}</span>
-                                </div>
-                                <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
-                                  <span className="text-rose-400 flex items-center gap-1">
-                                    <AlertOctagon className="h-3 w-3" />
-                                    Blocked
-                                  </span>
-                                  <span className="font-bold text-white">{blockedCount}</span>
-                                </div>
-                                <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
-                                  <span className="text-emerald-400 flex items-center gap-1">
-                                    <CheckCircle className="h-3 w-3" />
-                                    Done
-                                  </span>
-                                  <span className="font-bold text-white">{doneCount}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* View Arrow */}
-                            <div className="flex justify-end text-xs font-bold text-brand-400 group-hover:text-brand-300 transition-colors items-center gap-0.5">
-                              <span>Enter Team Space</span>
-                              <ChevronRight className="h-4 w-4" />
-                            </div>
+                          {isGeneralTeamsCollapsed ? (
+                            <ChevronRight className="h-5 w-5 text-slate-500" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5 text-slate-500" />
+                          )}
+                        </button>
+                        {!isGeneralTeamsCollapsed && (
+                          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 pl-3">
+                            {generalTeams.map((team) => renderTeamCard(team))}
                           </div>
-                        </div>
-                      )
-                    })}
+                        )}
+                      </div>
+                    )}
+
+                    {/* Specific Teams Section */}
+                    {specificTeams.length > 0 && (
+                      <div className="space-y-4 pt-4 border-t border-dark-800/40">
+                        <button
+                          onClick={() => setIsSpecificTeamsCollapsed(!isSpecificTeamsCollapsed)}
+                          className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-violet-400" />
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                              Team Specific Spaces ({specificTeams.length})
+                            </h3>
+                          </div>
+                          {isSpecificTeamsCollapsed ? (
+                            <ChevronRight className="h-5 w-5 text-slate-500" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5 text-slate-500" />
+                          )}
+                        </button>
+                        {!isSpecificTeamsCollapsed && (
+                          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 pl-3">
+                            {specificTeams.map((team) => renderTeamCard(team))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -1604,103 +1686,131 @@ export const AdminDashboard = () => {
                     
                     {/* Engaged Candidates List */}
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                        <h3 className="text-lg font-bold text-white">
-                          Engaged Candidates ({engagedCandidates.length})
-                        </h3>
-                      </div>
-                      
-                      {engagedCandidates.length === 0 ? (
-                        <p className="text-xs text-slate-505 italic py-2">
-                          No engaged candidates found. (Candidates who belong to at least one team with a category other than 'general').
-                        </p>
-                      ) : (
-                        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-                          {engagedCandidates.map(user => (
-                            <div 
-                              key={user.id}
-                              className="rounded-2xl border border-dark-800 bg-dark-900 p-5 flex flex-col justify-between gap-3 hover:border-brand-500/10 transition-colors shadow-glass"
-                            >
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <h4 className="font-sans font-bold text-white text-sm truncate max-w-[150px]">
-                                    {user.name || 'N/A'}
-                                  </h4>
-                                  <span className="text-[10px] text-slate-500 font-mono select-all">
-                                    Emp ID: {user.employee_id || 'N/A'}
-                                  </span>
-                                </div>
-                                
-                                <div className="space-y-1 text-xs text-slate-400">
-                                  <div>
-                                    <span className="font-semibold text-slate-500">Team: </span>
-                                    <span className="text-slate-200">{user.teamName}</span>
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold text-slate-500">Category: </span>
-                                    <span className="text-brand-400 font-medium capitalize">{user.teamCategory}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className="pt-2.5 border-t border-dark-800/40 text-[11px] text-slate-500 font-mono truncate select-all">
-                                {user.email}
-                              </div>
-                            </div>
-                          ))}
+                      <button
+                        onClick={() => setIsEngagedCollapsed(!isEngagedCollapsed)}
+                        className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                          <h3 className="text-lg font-bold text-white">
+                            Engaged Candidates ({engagedCandidates.length})
+                          </h3>
                         </div>
+                        {isEngagedCollapsed ? (
+                          <ChevronRight className="h-5 w-5 text-slate-500" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5 text-slate-500" />
+                        )}
+                      </button>
+                      
+                      {!isEngagedCollapsed && (
+                        <>
+                          {engagedCandidates.length === 0 ? (
+                            <p className="text-xs text-slate-505 italic py-2 pl-3">
+                              No engaged candidates found. (Candidates who belong to at least one team with a category other than 'general').
+                            </p>
+                          ) : (
+                            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 pl-3">
+                              {engagedCandidates.map(user => (
+                                <div 
+                                  key={user.id}
+                                  className="rounded-2xl border border-dark-800 bg-dark-900 p-5 flex flex-col justify-between gap-3 hover:border-brand-500/10 transition-colors shadow-glass"
+                                >
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="font-sans font-bold text-white text-sm truncate max-w-[150px]">
+                                        {user.name || 'N/A'}
+                                      </h4>
+                                      <span className="text-[10px] text-slate-505 font-mono select-all">
+                                        Emp ID: {user.employee_id || 'N/A'}
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="space-y-1 text-xs text-slate-400">
+                                      <div>
+                                        <span className="font-semibold text-slate-500">Team: </span>
+                                        <span className="text-slate-205">{user.teamName}</span>
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold text-slate-500">Category: </span>
+                                        <span className="text-brand-400 font-medium capitalize">{user.teamCategory}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="pt-2.5 border-t border-dark-800/40 text-[11px] text-slate-550 font-mono truncate select-all">
+                                    {user.email}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
 
                     {/* Non-Engaged Candidates List */}
                     <div className="space-y-4 pt-4 border-t border-dark-800/40">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                        <h3 className="text-lg font-bold text-white">
-                          Non-Engaged Candidates ({nonEngagedCandidates.length})
-                        </h3>
-                      </div>
-                      
-                      {nonEngagedCandidates.length === 0 ? (
-                        <p className="text-xs text-slate-505 italic py-2">
-                          No non-engaged candidates found. (Candidates who belong only to teams categorized as 'general' and no other teams).
-                        </p>
-                      ) : (
-                        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-                          {nonEngagedCandidates.map(user => (
-                            <div 
-                              key={user.id}
-                              className="rounded-2xl border border-dark-850 bg-dark-900 p-5 flex flex-col justify-between gap-3 hover:border-brand-500/10 transition-colors shadow-glass border-l-4 border-l-amber-500/60"
-                            >
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <h4 className="font-sans font-bold text-white text-sm truncate max-w-[150px]">
-                                    {user.name || 'N/A'}
-                                  </h4>
-                                  <span className="text-[10px] text-slate-500 font-mono select-all">
-                                    Emp ID: {user.employee_id || 'N/A'}
-                                  </span>
-                                </div>
-                                
-                                <div className="space-y-1 text-xs text-slate-400">
-                                  <div>
-                                    <span className="font-semibold text-slate-500">Team: </span>
-                                    <span className="text-slate-200">{user.teamName}</span>
-                                  </div>
-                                  <div>
-                                    <span className="font-semibold text-slate-500">Category: </span>
-                                    <span className="text-amber-400 font-medium capitalize">{user.teamCategory}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className="pt-2.5 border-t border-dark-800/40 text-[11px] text-slate-500 font-mono truncate select-all">
-                                {user.email}
-                              </div>
-                            </div>
-                          ))}
+                      <button
+                        onClick={() => setIsNonEngagedCollapsed(!isNonEngagedCollapsed)}
+                        className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                          <h3 className="text-lg font-bold text-white">
+                            Non-Engaged Candidates ({nonEngagedCandidates.length})
+                          </h3>
                         </div>
+                        {isNonEngagedCollapsed ? (
+                          <ChevronRight className="h-5 w-5 text-slate-500" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5 text-slate-500" />
+                        )}
+                      </button>
+                      
+                      {!isNonEngagedCollapsed && (
+                        <>
+                          {nonEngagedCandidates.length === 0 ? (
+                            <p className="text-xs text-slate-505 italic py-2 pl-3">
+                              No non-engaged candidates found. (Candidates who belong only to teams categorized as 'general' and no other teams).
+                            </p>
+                          ) : (
+                            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 pl-3">
+                              {nonEngagedCandidates.map(user => (
+                                <div 
+                                  key={user.id}
+                                  className="rounded-2xl border border-dark-850 bg-dark-900 p-5 flex flex-col justify-between gap-3 hover:border-brand-500/10 transition-colors shadow-glass border-l-4 border-l-amber-500/60"
+                                >
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="font-sans font-bold text-white text-sm truncate max-w-[150px]">
+                                        {user.name || 'N/A'}
+                                      </h4>
+                                      <span className="text-[10px] text-slate-500 font-mono select-all">
+                                        Emp ID: {user.employee_id || 'N/A'}
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="space-y-1 text-xs text-slate-400">
+                                      <div>
+                                        <span className="font-semibold text-slate-500">Team: </span>
+                                        <span className="text-slate-200">{user.teamName}</span>
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold text-slate-500">Category: </span>
+                                        <span className="text-amber-400 font-medium capitalize">{user.teamCategory}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="pt-2.5 border-t border-dark-800/40 text-[11px] text-slate-500 font-mono truncate select-all">
+                                    {user.email}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
 

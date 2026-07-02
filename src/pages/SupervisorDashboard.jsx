@@ -70,10 +70,27 @@ const SupervisorDashboard = () => {
     setCreating(true)
     setCreateError(null)
     try {
-      const { error: insertErr } = await supabase
+      const { data: newLab, error: insertErr } = await supabase
         .from('labs')
         .insert({ name: newLabName.trim(), description: newLabDesc.trim() || null, created_by: profile?.id })
+        .select()
+        .single()
+      
       if (insertErr) throw insertErr
+
+      // Auto create general team for this new lab
+      const { error: teamErr } = await supabase
+        .from('teams')
+        .insert({
+          name: 'General',
+          description: `General team space for ${newLabName.trim()} non project specific tasks`,
+          category: 'general',
+          created_by: profile?.id,
+          lab_id: newLab.id
+        })
+
+      if (teamErr) throw teamErr
+
       setNewLabName('')
       setNewLabDesc('')
       setIsCreateOpen(false)
@@ -82,6 +99,38 @@ const SupervisorDashboard = () => {
       setCreateError(err.message)
     } finally {
       setCreating(false)
+    }
+  }
+
+  // ── Delete Lab ──────────────────────────────────────────────────────────────
+  const handleDeleteLab = async (labId, labName) => {
+    if (!window.confirm(`Are you sure you want to delete the lab "${labName}" permanently? This will delete all teams, tasks, and historical details inside this lab.`)) {
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      // 1. Delete all teams in this lab first to trigger cascades
+      const { error: teamDeleteErr } = await supabase
+        .from('teams')
+        .delete()
+        .eq('lab_id', labId)
+
+      if (teamDeleteErr) throw teamDeleteErr
+
+      // 2. Delete the lab itself
+      const { error: labDeleteErr } = await supabase
+        .from('labs')
+        .delete()
+        .eq('id', labId)
+
+      if (labDeleteErr) throw labDeleteErr
+
+      await fetchLabs()
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
     }
   }
 
@@ -233,18 +282,27 @@ const SupervisorDashboard = () => {
 
                   <div className="flex flex-col flex-1 p-5 space-y-4">
                     {/* Lab name */}
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10">
-                        <FlaskConical className="h-5 w-5 text-brand-400" />
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10">
+                          <FlaskConical className="h-5 w-5 text-brand-400" />
+                        </div>
+                        <div>
+                          <h2 className="text-base font-extrabold text-white tracking-tight group-hover:text-brand-300 transition-colors">
+                            {lab.name}
+                          </h2>
+                          {lab.description && (
+                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{lab.description}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <h2 className="text-base font-extrabold text-white tracking-tight group-hover:text-brand-300 transition-colors">
-                          {lab.name}
-                        </h2>
-                        {lab.description && (
-                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{lab.description}</p>
-                        )}
-                      </div>
+                      <button
+                        onClick={() => handleDeleteLab(lab.id, lab.name)}
+                        className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-500/10 transition shrink-0"
+                        title="Delete Lab"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
 
                     {/* Stats row */}
