@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../hooks/useAuth'
 import Navbar from '../components/Navbar'
 import TeamModal from '../components/TeamModal'
 import { 
@@ -26,7 +27,10 @@ import {
   Calendar,
   User,
   Star,
-  Phone
+  Phone,
+  ArrowLeft,
+  FlaskConical,
+  ShieldCheck
 } from 'lucide-react'
 
 const PREDEFINED_SKILLS = [
@@ -125,6 +129,10 @@ const calculateExperience = (joiningDateStr) => {
 
 export const AdminDashboard = () => {
   const navigate = useNavigate()
+  const { labId } = useParams()          // present when supervisor enters /supervisor/lab/:labId
+  const { profile, isSupervisor } = useAuth()
+  const isSupervisorView = !!labId       // true = supervisor entered a specific lab
+  const [labName, setLabName] = useState(null)  // name of current lab (for header)
   const [teams, setTeams] = useState([])
   const [pendingUsers, setPendingUsers] = useState([])
   const [activeTab, setActiveTab] = useState('teams') // 'teams' or 'registrations'
@@ -285,7 +293,7 @@ export const AdminDashboard = () => {
 
   const fetchTeams = async () => {
     try {
-      const { data, error: fetchErr } = await supabase
+      let query = supabase
         .from('teams')
         .select(`
           id,
@@ -293,11 +301,29 @@ export const AdminDashboard = () => {
           description,
           category,
           created_at,
+          lab_id,
           team_members (id),
           tasks (id, status)
         `)
         .order('created_at', { ascending: false })
 
+      if (isSupervisorView && labId) {
+        // Supervisor entered a specific lab — filter by that lab
+        query = query.eq('lab_id', labId)
+      } else if (!isSupervisor) {
+        // Lead Admin — only show teams from their assigned labs
+        const { data: assignments } = await supabase
+          .from('lab_admins')
+          .select('lab_id')
+          .eq('user_id', profile?.id)
+        if (assignments && assignments.length > 0) {
+          const assignedLabIds = assignments.map(a => a.lab_id)
+          query = query.in('lab_id', assignedLabIds)
+        }
+      }
+      // If isSupervisor but not isSupervisorView (landing on /admin somehow) — show all
+
+      const { data, error: fetchErr } = await query
       if (fetchErr) throw fetchErr
       setTeams(data || [])
     } catch (err) {
@@ -462,13 +488,22 @@ export const AdminDashboard = () => {
   const loadData = async () => {
     setLoading(true)
     setError(null)
+    // If in supervisor lab view, fetch the lab name for display
+    if (isSupervisorView && labId) {
+      const { data: labData } = await supabase
+        .from('labs')
+        .select('name')
+        .eq('id', labId)
+        .single()
+      if (labData) setLabName(labData.name)
+    }
     await Promise.all([fetchTeams(), fetchPendingUsers(), fetchMilestones()])
     setLoading(false)
   }
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [labId])
 
   // Manual non-debounced profile search query trigger for instant reloading after editing
   const triggerSearchQuery = async () => {
@@ -749,11 +784,28 @@ export const AdminDashboard = () => {
 
       <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-8 sm:px-6 lg:px-8 space-y-8">
         
+        {/* Back to All Labs — shown when supervisor is inside a specific lab */}
+        {isSupervisorView && (
+          <button
+            onClick={() => navigate('/supervisor')}
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white font-semibold transition mb-2"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to All Labs
+          </button>
+        )}
+
         {/* Header Block */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-dark-800 pb-6">
           <div>
+            {isSupervisorView && labName && (
+              <div className="flex items-center gap-1.5 mb-1">
+                <FlaskConical className="h-3.5 w-3.5 text-brand-400" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-400">{labName}</span>
+              </div>
+            )}
             <h1 className="font-sans text-3xl font-extrabold tracking-tight text-white">
-              Global Dashboard
+              {isSupervisorView ? 'Lab Dashboard' : 'Global Dashboard'}
             </h1>
             <p className="text-sm text-slate-400 mt-1">
               Monitor team spaces, configure tasks, and allocate team memberships.
@@ -1647,6 +1699,9 @@ export const AdminDashboard = () => {
                 >
                   <option value="member">Team Member</option>
                   <option value="admin">Lead Admin</option>
+                  {isSupervisor && (
+                    <option value="supervisor">Supervisor</option>
+                  )}
                 </select>
               </div>
 

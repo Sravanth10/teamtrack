@@ -5,6 +5,8 @@ export const AuthContext = createContext({
   user: null,
   profile: null,
   loading: true,
+  isSupervisor: false,
+  isAdmin: false,
   login: async () => {},
   logout: async () => {},
   refreshProfile: async () => {},
@@ -145,10 +147,15 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  const isSupervisor = profile?.role === 'supervisor'
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'supervisor'
+
   const value = {
     user,
     profile,
     loading,
+    isSupervisor,
+    isAdmin,
     login,
     logout,
     refreshProfile,

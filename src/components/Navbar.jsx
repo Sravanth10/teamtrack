@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { LogOut, User, Compass, Sun, Moon, QrCode, ShieldCheck, X, Loader, Users, ChevronDown } from 'lucide-react'
+import { LogOut, User, Compass, Sun, Moon, QrCode, ShieldCheck, X, Loader, Users, ChevronDown, FlaskConical } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import * as OTPAuth from 'otpauth'
 import { ProfileModal } from './ProfileModal'
 
 export const Navbar = () => {
-  const { profile, logout, refreshProfile } = useAuth()
+  const { profile, logout, refreshProfile, isSupervisor } = useAuth()
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
   
   // Allocated teams switcher states
   const [userTeams, setUserTeams] = useState([])
   const [loadingTeams, setLoadingTeams] = useState(false)
   const [isTeamsDropdownOpen, setIsTeamsDropdownOpen] = useState(false)
+  const [memberLabName, setMemberLabName] = useState(null)  // lab name for members
   
   // User profile modal state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
@@ -27,13 +28,19 @@ export const Navbar = () => {
           teams (
             id,
             name,
-            category
+            category,
+            lab_id,
+            labs ( name )
           )
         `)
         .eq('user_id', profile.id)
         .then(({ data, error }) => {
           if (!error && data) {
-            setUserTeams(data.map(m => m.teams).filter(Boolean))
+            const teams = data.map(m => m.teams).filter(Boolean)
+            setUserTeams(teams)
+            // Pick the lab name from the first team that has one
+            const labEntry = teams.find(t => t.labs?.name)
+            if (labEntry) setMemberLabName(labEntry.labs.name)
           }
           setLoadingTeams(false)
         })
@@ -159,33 +166,42 @@ export const Navbar = () => {
 
               {/* Team Workspace Switcher for Members */}
               {profile && profile.role === 'member' && userTeams.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={() => setIsTeamsDropdownOpen(!isTeamsDropdownOpen)}
-                    className="flex items-center gap-1.5 rounded-lg bg-dark-900 border border-dark-700 px-3 py-1.5 text-xs font-semibold text-slate-350 hover:text-white transition-all duration-200 hover:border-slate-600"
-                  >
-                    <Users className="h-3.5 w-3.5 text-brand-400" />
-                    <span>My Team Spaces ({userTeams.length})</span>
-                    <ChevronDown className={`h-3 w-3 text-slate-500 transition-transform ${isTeamsDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  {isTeamsDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setIsTeamsDropdownOpen(false)} />
-                      <div className="absolute left-0 z-50 mt-2 w-64 rounded-xl border border-dark-800 bg-dark-900 p-2 shadow-2xl space-y-1">
-                        {userTeams.map(t => (
-                          <a
-                            key={t.id}
-                            href={`/team/${t.id}`}
-                            onClick={() => setIsTeamsDropdownOpen(false)}
-                            className="block rounded-lg px-3 py-2 text-xs text-slate-200 hover:bg-dark-800 hover:text-white transition font-sans font-semibold text-left"
-                          >
-                            <span className="block truncate">{t.name}</span>
-                            <span className="text-[9px] uppercase font-bold text-brand-400 mt-0.5 block">{t.category || 'General'}</span>
-                          </a>
-                        ))}
-                      </div>
-                    </>
+                <div className="flex items-center gap-2">
+                  {/* Lab badge for members */}
+                  {memberLabName && (
+                    <span className="hidden sm:flex items-center gap-1 rounded-md bg-brand-500/10 border border-brand-500/20 px-2 py-1 text-[10px] font-bold text-brand-400">
+                      <FlaskConical className="h-3 w-3" />
+                      {memberLabName}
+                    </span>
                   )}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsTeamsDropdownOpen(!isTeamsDropdownOpen)}
+                      className="flex items-center gap-1.5 rounded-lg bg-dark-900 border border-dark-700 px-3 py-1.5 text-xs font-semibold text-slate-350 hover:text-white transition-all duration-200 hover:border-slate-600"
+                    >
+                      <Users className="h-3.5 w-3.5 text-brand-400" />
+                      <span>My Team Spaces ({userTeams.length})</span>
+                      <ChevronDown className={`h-3 w-3 text-slate-500 transition-transform ${isTeamsDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isTeamsDropdownOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsTeamsDropdownOpen(false)} />
+                        <div className="absolute left-0 z-50 mt-2 w-64 rounded-xl border border-dark-800 bg-dark-900 p-2 shadow-2xl space-y-1">
+                          {userTeams.map(t => (
+                            <a
+                              key={t.id}
+                              href={`/team/${t.id}`}
+                              onClick={() => setIsTeamsDropdownOpen(false)}
+                              className="block rounded-lg px-3 py-2 text-xs text-slate-200 hover:bg-dark-800 hover:text-white transition font-sans font-semibold text-left"
+                            >
+                              <span className="block truncate">{t.name}</span>
+                              <span className="text-[9px] uppercase font-bold text-brand-400 mt-0.5 block">{t.category || 'General'}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -205,11 +221,13 @@ export const Navbar = () => {
 
                 {/* Role Badge */}
                 <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium ${
-                  profile.role === 'admin' 
+                  profile.role === 'supervisor'
+                    ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
+                    : profile.role === 'admin' 
                     ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' 
                     : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                 }`}>
-                  {profile.role === 'admin' ? 'Lead Admin' : 'Team Member'}
+                  {profile.role === 'supervisor' ? 'Supervisor' : profile.role === 'admin' ? 'Lead Admin' : 'Team Member'}
                 </span>
 
                 {/* MFA Status / Activation Action */}

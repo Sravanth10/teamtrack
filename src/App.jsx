@@ -6,6 +6,7 @@ import { supabase } from './lib/supabaseClient'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 import AdminDashboard from './pages/AdminDashboard'
+import SupervisorDashboard from './pages/SupervisorDashboard'
 import TeamSpace from './pages/TeamSpace'
 import VerifyOTP from './pages/VerifyOTP'
 import TasksArchive from './pages/TasksArchive'
@@ -46,7 +47,9 @@ const RootRedirector = () => {
       }
 
       // Step 3: Handle role redirection
-      if (profile.role === 'admin') {
+      if (profile.role === 'supervisor') {
+        setRedirectPath('/supervisor')
+      } else if (profile.role === 'admin') {
         setRedirectPath('/admin')
       } else {
         // Member role - Find which teams they belong to
@@ -139,7 +142,7 @@ const ProtectedRoute = ({ children }) => {
   return children
 }
 
-// 4. Admin Protected Route (User must be logged in, approved, verified, AND have role = admin)
+// 4. Admin Protected Route (User must be logged in, approved, verified, AND have role = admin or supervisor)
 const AdminRoute = ({ children }) => {
   const { user, profile, loading } = useAuth()
 
@@ -165,7 +168,41 @@ const AdminRoute = ({ children }) => {
     if (profile.totp_secret && sessionStorage.getItem('totp_verified_' + user.id) !== 'true') {
       return <Navigate to="/verify-otp" replace />
     }
-    if (profile.role !== 'admin') {
+    if (profile.role !== 'admin' && profile.role !== 'supervisor') {
+      return <Navigate to="/" replace />
+    }
+  }
+
+  return children
+}
+
+// 5. Supervisor Protected Route (only role = supervisor)
+const SupervisorRoute = ({ children }) => {
+  const { user, profile, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-950 flex justify-center items-center">
+        <Loader className="h-10 w-10 text-brand-500 animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (profile) {
+    if (profile.approved_status === 'pending') {
+      return <Navigate to="/pending-approval" replace />
+    }
+    if (profile.approved_status === 'rejected') {
+      return <Navigate to="/rejected" replace />
+    }
+    if (profile.totp_secret && sessionStorage.getItem('totp_verified_' + user.id) !== 'true') {
+      return <Navigate to="/verify-otp" replace />
+    }
+    if (profile.role !== 'supervisor') {
       return <Navigate to="/" replace />
     }
   }
@@ -475,6 +512,26 @@ function App() {
                 <SelectTeamView />
               </ProtectedRoute>
             } 
+          />
+
+          {/* Supervisor Dashboard */}
+          <Route
+            path="/supervisor"
+            element={
+              <SupervisorRoute>
+                <SupervisorDashboard />
+              </SupervisorRoute>
+            }
+          />
+
+          {/* Supervisor entering a specific lab (renders AdminDashboard in lab context) */}
+          <Route
+            path="/supervisor/lab/:labId"
+            element={
+              <SupervisorRoute>
+                <AdminDashboard />
+              </SupervisorRoute>
+            }
           />
 
           {/* Admin Dashboard */}
