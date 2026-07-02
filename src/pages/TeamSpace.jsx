@@ -18,7 +18,8 @@ import {
   X,
   Bookmark,
   Calendar,
-  Trash2
+  Trash2,
+  FlaskConical
 } from 'lucide-react'
 
 export const TeamSpace = () => {
@@ -79,7 +80,7 @@ export const TeamSpace = () => {
       // 2. Fetch Team Info
       const { data: teamData, error: teamErr } = await supabase
         .from('teams')
-        .select('*')
+        .select('*, labs ( name )')
         .eq('id', teamId)
         .single()
 
@@ -388,6 +389,12 @@ export const TeamSpace = () => {
                 <h1 className="font-sans text-2xl font-extrabold text-white leading-tight">
                   {team?.name}
                 </h1>
+                {team?.labs?.name && (
+                  <span className="inline-flex items-center gap-1 rounded bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 text-[10px] font-bold text-brand-400">
+                    <FlaskConical className="h-3 w-3" />
+                    {team.labs.name}
+                  </span>
+                )}
               </div>
               {team?.description && (
                 <p className="text-xs text-slate-450 mt-1 max-w-xl">

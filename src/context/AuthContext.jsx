@@ -23,7 +23,23 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          team_members (
+            team_id,
+            teams (
+              id,
+              name,
+              category,
+              lab_id,
+              labs ( name )
+            )
+          ),
+          lab_admins (
+            lab_id,
+            labs ( name )
+          )
+        `)
         .eq('id', userId)
         .single()
 

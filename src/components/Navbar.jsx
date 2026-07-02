@@ -14,36 +14,57 @@ export const Navbar = () => {
   const [loadingTeams, setLoadingTeams] = useState(false)
   const [isTeamsDropdownOpen, setIsTeamsDropdownOpen] = useState(false)
   const [memberLabName, setMemberLabName] = useState(null)  // lab name for members
+  const [adminLabNames, setAdminLabNames] = useState(null)  // lab names for lead admins
   
   // User profile modal state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
 
   useEffect(() => {
-    if (profile && profile.role === 'member') {
-      setLoadingTeams(true)
-      supabase
-        .from('team_members')
-        .select(`
-          team_id,
-          teams (
-            id,
-            name,
-            category,
+    if (profile) {
+      if (profile.role === 'member') {
+        setLoadingTeams(true)
+        supabase
+          .from('team_members')
+          .select(`
+            team_id,
+            teams (
+              id,
+              name,
+              category,
+              lab_id,
+              labs ( name )
+            )
+          `)
+          .eq('user_id', profile.id)
+          .then(({ data, error }) => {
+            if (!error && data) {
+              const teams = data.map(m => m.teams).filter(Boolean)
+              setUserTeams(teams)
+              // Pick the lab name from the first team that has one
+              const labEntry = teams.find(t => t.labs?.name)
+              if (labEntry) setMemberLabName(labEntry.labs.name)
+            }
+            setLoadingTeams(false)
+          })
+      } else if (profile.role === 'admin') {
+        supabase
+          .from('lab_admins')
+          .select(`
             lab_id,
             labs ( name )
-          )
-        `)
-        .eq('user_id', profile.id)
-        .then(({ data, error }) => {
-          if (!error && data) {
-            const teams = data.map(m => m.teams).filter(Boolean)
-            setUserTeams(teams)
-            // Pick the lab name from the first team that has one
-            const labEntry = teams.find(t => t.labs?.name)
-            if (labEntry) setMemberLabName(labEntry.labs.name)
-          }
-          setLoadingTeams(false)
-        })
+          `)
+          .eq('user_id', profile.id)
+          .then(({ data, error }) => {
+            if (!error && data) {
+              const names = data.map(la => la.labs?.name).filter(Boolean)
+              if (names.length > 0) {
+                setAdminLabNames(names.join(', '))
+              } else {
+                setAdminLabNames(null)
+              }
+            }
+          })
+      }
     }
   }, [profile])
   
@@ -203,6 +224,13 @@ export const Navbar = () => {
                     )}
                   </div>
                 </div>
+              )}
+              {/* Lab badge for Lead Admins */}
+              {profile && profile.role === 'admin' && adminLabNames && (
+                <span className="hidden sm:flex items-center gap-1 rounded-md bg-brand-500/10 border border-brand-500/20 px-2 py-1 text-[10px] font-bold text-brand-400">
+                  <FlaskConical className="h-3 w-3" />
+                  {adminLabNames}
+                </span>
               )}
             </div>
 

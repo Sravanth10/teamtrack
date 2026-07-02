@@ -517,8 +517,14 @@ export const AdminDashboard = () => {
           team_members (
             team_id,
             teams (
-              name
+              name,
+              lab_id,
+              labs ( name )
             )
+          ),
+          lab_admins (
+            lab_id,
+            labs ( name )
           )
         `)
         .or(`name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,employee_id.ilike.%${searchQuery}%`)
@@ -544,11 +550,23 @@ export const AdminDashboard = () => {
 
         const combined = usersData.map(user => {
           const userTasks = tasksData ? tasksData.filter(t => t.created_by === user.id) : []
+          
+          let labName = 'None'
+          if (user.role === 'member') {
+            const memberLabs = user.team_members?.map(tm => tm.teams?.labs?.name).filter(Boolean) || []
+            const uniqueLabs = [...new Set(memberLabs)]
+            if (uniqueLabs.length > 0) labName = uniqueLabs.join(', ')
+          } else if (user.role === 'admin') {
+            const adminLabs = user.lab_admins?.map(la => la.labs?.name).filter(Boolean) || []
+            if (adminLabs.length > 0) labName = adminLabs.join(', ')
+          }
+
           return {
             ...user,
             teamName: user.team_members && user.team_members.length > 0
               ? user.team_members.map(tm => tm.teams?.name).filter(Boolean).join(', ')
               : 'No Assigned Team',
+            labName,
             tasks: userTasks
           }
         })
@@ -582,8 +600,14 @@ export const AdminDashboard = () => {
             team_members (
               team_id,
               teams (
-                name
+                name,
+                lab_id,
+                labs ( name )
               )
+            ),
+            lab_admins (
+              lab_id,
+              labs ( name )
             )
           `)
           .or(`name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,employee_id.ilike.%${searchQuery}%`)
@@ -609,11 +633,23 @@ export const AdminDashboard = () => {
 
           const combined = usersData.map(user => {
             const userTasks = tasksData ? tasksData.filter(t => t.created_by === user.id) : []
+            
+            let labName = 'None'
+            if (user.role === 'member') {
+              const memberLabs = user.team_members?.map(tm => tm.teams?.labs?.name).filter(Boolean) || []
+              const uniqueLabs = [...new Set(memberLabs)]
+              if (uniqueLabs.length > 0) labName = uniqueLabs.join(', ')
+            } else if (user.role === 'admin') {
+              const adminLabs = user.lab_admins?.map(la => la.labs?.name).filter(Boolean) || []
+              if (adminLabs.length > 0) labName = adminLabs.join(', ')
+            }
+
             return {
               ...user,
               teamName: user.team_members && user.team_members.length > 0
                 ? user.team_members.map(tm => tm.teams?.name).filter(Boolean).join(', ')
                 : 'No Assigned Team',
+              labName,
               tasks: userTasks
             }
           })
@@ -1283,6 +1319,14 @@ export const AdminDashboard = () => {
                                   {user.teamName}
                                 </span>
                               </div>
+                              {user.role !== 'supervisor' && (
+                                <div className="col-span-2 pt-2 border-t border-dark-800/60 flex items-center justify-between">
+                                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550">Lab Assignment</span>
+                                  <span className="font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded text-[10px]">
+                                    {user.labName || 'None'}
+                                  </span>
+                                </div>
+                              )}
                             </div>
 
                             {/* Skills Tags */}

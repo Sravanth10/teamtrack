@@ -175,12 +175,30 @@ export const ProfileModal = ({ isOpen, onClose }) => {
               <span className="text-slate-505 block mb-0.5">Email Address</span>
               <span className="text-slate-300 font-semibold font-mono">{profile?.email || 'N/A'}</span>
             </div>
-            <div className="col-span-2">
+            <div>
               <span className="text-slate-550 block mb-0.5">Rapid Build Experience</span>
               <span className="text-slate-300 font-medium">
                 {profile?.rapid_experience || 'N/A'}
               </span>
             </div>
+            {profile && (profile.role === 'member' || profile.role === 'admin') && (
+              <div>
+                <span className="text-slate-550 block mb-0.5">Lab Assignment</span>
+                <span className="text-brand-400 font-bold">
+                  {(() => {
+                    if (profile.role === 'member') {
+                      const teams = profile.team_members?.map(m => m.teams).filter(Boolean) || []
+                      const labNames = teams.map(t => t.labs?.name).filter(Boolean)
+                      const uniqueNames = [...new Set(labNames)]
+                      return uniqueNames.length > 0 ? uniqueNames.join(', ') : 'None'
+                    } else {
+                      const labNames = profile.lab_admins?.map(la => la.labs?.name).filter(Boolean) || []
+                      return labNames.length > 0 ? labNames.join(', ') : 'None'
+                    }
+                  })()}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Editable field: Employee ID & Rapid Build Joining Date */}

@@ -5,7 +5,8 @@ import { useAuth } from '../hooks/useAuth'
 import Navbar from '../components/Navbar'
 import {
   FlaskConical, Plus, ArrowRight, Users, LayoutGrid,
-  CheckCircle2, Loader, X, AlertCircle, Building2, ShieldCheck
+  CheckCircle2, Loader, X, AlertCircle, Building2, ShieldCheck,
+  UserPlus, Trash2, Search, UserMinus
 } from 'lucide-react'
 
 const SupervisorDashboard = () => {
@@ -23,11 +24,18 @@ const SupervisorDashboard = () => {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState(null)
 
+  // Manage Lead Admins modal
+  const [managingLab, setManagingLab] = useState(null)   // the lab object being managed
+  const [adminSearch, setAdminSearch] = useState('')
+  const [adminSearchResults, setAdminSearchResults] = useState([])
+  const [adminSearchLoading, setAdminSearchLoading] = useState(false)
+  const [assignedAdmins, setAssignedAdmins] = useState([]) // lab_admins rows for current lab
+  const [adminActionLoading, setAdminActionLoading] = useState(null) // user_id being actioned
+
   const fetchLabs = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      // Fetch all labs with nested team and member counts
       const { data, error: labErr } = await supabase
         .from('labs')
         .select(`
@@ -56,6 +64,7 @@ const SupervisorDashboard = () => {
     fetchLabs()
   }, [fetchLabs])
 
+  // ── Create Lab ──────────────────────────────────────────────────────────────
   const handleCreateLab = async () => {
     if (!newLabName.trim()) return
     setCreating(true)
@@ -76,10 +85,89 @@ const SupervisorDashboard = () => {
     }
   }
 
-  // Compute stats per lab — unique member count deduplicates users across teams
+  // ── Manage Lead Admins modal ────────────────────────────────────────────────
+  const openManageAdmins = async (lab) => {
+    setManagingLab(lab)
+    setAdminSearch('')
+    setAdminSearchResults([])
+    // Load currently assigned admins for this lab
+    const { data } = await supabase
+      .from('lab_admins')
+      .select('user_id, users ( id, name, email )')
+      .eq('lab_id', lab.id)
+    setAssignedAdmins(data || [])
+  }
+
+  const closeManageAdmins = () => {
+    setManagingLab(null)
+    setAdminSearch('')
+    setAdminSearchResults([])
+    setAssignedAdmins([])
+  }
+
+  // Search users with role = admin
+  useEffect(() => {
+    if (!managingLab || !adminSearch.trim()) {
+      setAdminSearchResults([])
+      return
+    }
+    const t = setTimeout(async () => {
+      setAdminSearchLoading(true)
+      const { data } = await supabase
+        .from('users')
+        .select('id, name, email, role')
+        .eq('approved_status', 'approved')
+        .eq('role', 'admin')
+        .or(`name.ilike.%${adminSearch}%,email.ilike.%${adminSearch}%`)
+        .limit(8)
+      setAdminSearchResults(data || [])
+      setAdminSearchLoading(false)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [adminSearch, managingLab])
+
+  const handleAssignAdmin = async (user) => {
+    setAdminActionLoading(user.id)
+    try {
+      const { error } = await supabase
+        .from('lab_admins')
+        .insert({ lab_id: managingLab.id, user_id: user.id })
+      if (error) throw error
+      // Refresh assigned list
+      const { data } = await supabase
+        .from('lab_admins')
+        .select('user_id, users ( id, name, email )')
+        .eq('lab_id', managingLab.id)
+      setAssignedAdmins(data || [])
+      await fetchLabs()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setAdminActionLoading(null)
+    }
+  }
+
+  const handleRemoveAdmin = async (userId) => {
+    setAdminActionLoading(userId)
+    try {
+      const { error } = await supabase
+        .from('lab_admins')
+        .delete()
+        .eq('lab_id', managingLab.id)
+        .eq('user_id', userId)
+      if (error) throw error
+      setAssignedAdmins(prev => prev.filter(a => a.user_id !== userId))
+      await fetchLabs()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setAdminActionLoading(null)
+    }
+  }
+
+  // ── Stats helper ────────────────────────────────────────────────────────────
   const getLabStats = (lab) => {
     const teamCount = lab.teams?.length || 0
-    // Collect all user_ids across every team in this lab, then deduplicate
     const allUserIds = (lab.teams || []).flatMap(t =>
       (t.team_members || []).map(m => m.user_id).filter(Boolean)
     )
@@ -88,6 +176,9 @@ const SupervisorDashboard = () => {
     return { teamCount, memberCount, adminCount }
   }
 
+  const isAssigned = (userId) => assignedAdmins.some(a => a.user_id === userId)
+
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-dark-950 text-slate-200 flex flex-col">
       <Navbar />
@@ -113,7 +204,6 @@ const SupervisorDashboard = () => {
           </button>
         </div>
 
-        {/* Error */}
         {error && (
           <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
             <AlertCircle className="h-4 w-4 shrink-0" />
@@ -121,7 +211,6 @@ const SupervisorDashboard = () => {
           </div>
         )}
 
-        {/* Loading */}
         {loading ? (
           <div className="flex justify-center items-center py-24">
             <Loader className="h-8 w-8 text-brand-500 animate-spin" />
@@ -140,24 +229,21 @@ const SupervisorDashboard = () => {
                   key={lab.id}
                   className="group relative flex flex-col rounded-2xl border border-dark-800 bg-dark-900 overflow-hidden hover:border-brand-500/30 transition-all duration-300 shadow-glass hover:shadow-[0_0_30px_rgba(99,102,241,0.08)]"
                 >
-                  {/* Top accent bar */}
                   <div className="h-1 w-full bg-gradient-to-r from-brand-500 to-violet-500 opacity-60 group-hover:opacity-100 transition-opacity" />
 
                   <div className="flex flex-col flex-1 p-5 space-y-4">
                     {/* Lab name */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10">
-                          <FlaskConical className="h-5 w-5 text-brand-400" />
-                        </div>
-                        <div>
-                          <h2 className="text-base font-extrabold text-white tracking-tight group-hover:text-brand-300 transition-colors">
-                            {lab.name}
-                          </h2>
-                          {lab.description && (
-                            <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{lab.description}</p>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10">
+                        <FlaskConical className="h-5 w-5 text-brand-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-extrabold text-white tracking-tight group-hover:text-brand-300 transition-colors">
+                          {lab.name}
+                        </h2>
+                        {lab.description && (
+                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{lab.description}</p>
+                        )}
                       </div>
                     </div>
 
@@ -196,14 +282,26 @@ const SupervisorDashboard = () => {
                       </div>
                     )}
 
-                    {/* Enter Lab CTA */}
-                    <button
-                      onClick={() => navigate(`/supervisor/lab/${lab.id}`)}
-                      className="mt-auto w-full flex items-center justify-center gap-2 rounded-xl border border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/15 text-brand-400 hover:text-brand-300 font-semibold text-xs py-2.5 transition-all group/btn"
-                    >
-                      Enter Lab
-                      <ArrowRight className="h-3.5 w-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
-                    </button>
+                    {/* Action buttons */}
+                    <div className="mt-auto flex gap-2">
+                      {/* Manage Lead Admins */}
+                      <button
+                        onClick={() => openManageAdmins(lab)}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-violet-500/20 bg-violet-500/5 hover:bg-violet-500/15 text-violet-400 hover:text-violet-300 font-semibold text-xs py-2.5 transition-all"
+                      >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Lead Admins
+                      </button>
+
+                      {/* Enter Lab */}
+                      <button
+                        onClick={() => navigate(`/supervisor/lab/${lab.id}`)}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/15 text-brand-400 hover:text-brand-300 font-semibold text-xs py-2.5 transition-all group/btn"
+                      >
+                        Enter Lab
+                        <ArrowRight className="h-3.5 w-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
@@ -212,7 +310,7 @@ const SupervisorDashboard = () => {
         )}
       </main>
 
-      {/* Create Lab Modal */}
+      {/* ── Create Lab Modal ─────────────────────────────────────────────────── */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsCreateOpen(false)} />
@@ -226,7 +324,6 @@ const SupervisorDashboard = () => {
                 <X className="h-4 w-4" />
               </button>
             </div>
-
             <div className="p-5 space-y-4">
               <div>
                 <label className="text-xs font-semibold text-slate-400 mb-1.5 block">Lab Name <span className="text-rose-400">*</span></label>
@@ -249,14 +346,11 @@ const SupervisorDashboard = () => {
                   className="w-full rounded-xl border border-dark-700 bg-dark-800 px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-brand-500/60 transition resize-none"
                 />
               </div>
-
               {createError && (
                 <p className="text-xs text-rose-400 flex items-center gap-1.5">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  {createError}
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />{createError}
                 </p>
               )}
-
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => setIsCreateOpen(false)}
@@ -273,6 +367,136 @@ const SupervisorDashboard = () => {
                   {creating ? 'Creating...' : 'Create Lab'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Manage Lead Admins Modal ──────────────────────────────────────────── */}
+      {managingLab && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeManageAdmins} />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-dark-800 bg-dark-900 shadow-2xl overflow-hidden animate-fade-in">
+
+            {/* Modal header */}
+            <div className="flex items-center justify-between border-b border-dark-800 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-violet-400" />
+                <div>
+                  <h3 className="font-bold text-white text-sm">Manage Lead Admins</h3>
+                  <p className="text-[10px] text-slate-500">{managingLab.name}</p>
+                </div>
+              </div>
+              <button onClick={closeManageAdmins} className="text-slate-400 hover:text-white transition">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+
+              {/* Currently assigned */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Currently Assigned ({assignedAdmins.length})
+                </p>
+                {assignedAdmins.length === 0 ? (
+                  <p className="text-xs text-slate-600 italic">No lead admins assigned yet.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {assignedAdmins.map((a) => (
+                      <div
+                        key={a.user_id}
+                        className="flex items-center justify-between rounded-xl border border-dark-700 bg-dark-800 px-3 py-2.5"
+                      >
+                        <div>
+                          <p className="text-xs font-semibold text-white">{a.users?.name || 'Unknown'}</p>
+                          <p className="text-[10px] text-slate-500">{a.users?.email}</p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveAdmin(a.user_id)}
+                          disabled={adminActionLoading === a.user_id}
+                          className="flex items-center gap-1 text-[10px] font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg px-2 py-1 transition disabled:opacity-50"
+                        >
+                          {adminActionLoading === a.user_id
+                            ? <Loader className="h-3 w-3 animate-spin" />
+                            : <UserMinus className="h-3 w-3" />}
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-dark-800" />
+
+              {/* Search & add */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                  Add Lead Admin
+                </p>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                  <input
+                    type="text"
+                    value={adminSearch}
+                    onChange={(e) => setAdminSearch(e.target.value)}
+                    placeholder="Search by name or email..."
+                    className="w-full rounded-xl border border-dark-700 bg-dark-800 pl-9 pr-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-brand-500/60 transition"
+                  />
+                  {adminSearchLoading && (
+                    <Loader className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 animate-spin" />
+                  )}
+                </div>
+
+                {adminSearch.trim() && !adminSearchLoading && adminSearchResults.length === 0 && (
+                  <p className="text-xs text-slate-600 italic">No lead admins found matching "{adminSearch}".</p>
+                )}
+
+                <div className="space-y-1.5">
+                  {adminSearchResults.map((user) => {
+                    const already = isAssigned(user.id)
+                    return (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between rounded-xl border border-dark-700 bg-dark-800 px-3 py-2.5"
+                      >
+                        <div>
+                          <p className="text-xs font-semibold text-white">{user.name || 'Unnamed'}</p>
+                          <p className="text-[10px] text-slate-500">{user.email}</p>
+                        </div>
+                        {already ? (
+                          <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2 py-1 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Assigned
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleAssignAdmin(user)}
+                            disabled={adminActionLoading === user.id}
+                            className="flex items-center gap-1 text-[10px] font-semibold text-brand-400 hover:text-brand-300 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/20 rounded-lg px-2 py-1 transition disabled:opacity-50"
+                          >
+                            {adminActionLoading === user.id
+                              ? <Loader className="h-3 w-3 animate-spin" />
+                              : <UserPlus className="h-3 w-3" />}
+                            Assign
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-dark-800 px-5 py-3">
+              <button
+                onClick={closeManageAdmins}
+                className="w-full rounded-xl border border-dark-700 bg-dark-800 text-slate-300 hover:text-white text-sm font-semibold py-2.5 transition"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>
