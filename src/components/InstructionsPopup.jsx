@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { ShieldAlert, TriangleAlert, Building2, Users, ClipboardList, NotebookPen, Check } from 'lucide-react'
 
+// Toggle this constant to true to reactivate guidelines popup in the future
+const IS_GUIDELINES_POPUP_ACTIVE = false
+
 export const InstructionsPopup = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [checked, setChecked] = useState(false)
 
   useEffect(() => {
+    if (!IS_GUIDELINES_POPUP_ACTIVE) return
     const isDismissed = sessionStorage.getItem('teamtrack_instructions_dismissed') === 'true'
     if (!isDismissed) {
       const timer = setTimeout(() => setIsOpen(true), 800)
@@ -19,7 +23,7 @@ export const InstructionsPopup = () => {
     setIsOpen(false)
   }
 
-  if (!isOpen) return null
+  if (!IS_GUIDELINES_POPUP_ACTIVE || !isOpen) return null
 
   const rules = [
     {

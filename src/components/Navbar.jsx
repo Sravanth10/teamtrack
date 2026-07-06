@@ -361,14 +361,6 @@ export const Navbar = () => {
                   </div>
                 )}
 
-                {/* Secret Key Backup */}
-                <div className="space-y-1 text-left max-w-xs mx-auto">
-                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block text-center">Or enter secret key manually</span>
-                  <div className="rounded-lg border border-dark-850 bg-dark-950 px-3 py-1.5 font-mono text-[10px] text-brand-300 select-all text-center break-all">
-                    {totpSecretObj?.base32}
-                  </div>
-                </div>
-
                 {/* Verification Code */}
                 <div className="text-left max-w-xs mx-auto space-y-1">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 text-center">

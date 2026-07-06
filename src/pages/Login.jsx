@@ -206,38 +206,90 @@ export const Login = () => {
           setError('Please fill in all fields')
           return
         }
+
+        // Email format check (@tcs.com validation)
+        const emailLower = email.trim().toLowerCase()
+        if (!emailLower.endsWith('@tcs.com') || emailLower === '@tcs.com') {
+          setError('Email must end with @tcs.com (e.g. name@tcs.com)')
+          return
+        }
+
+        // Phone number length check
         const currentRegion = REGIONS.find(r => r.code === phoneRegion)
         if (phoneNo.length !== currentRegion.digits) {
           setError(`Phone number for ${currentRegion.country} must be exactly ${currentRegion.digits} digits long`)
           return
         }
+
+        // Password matching check
         if (password !== confirmPassword) {
           setError('Passwords do not match')
           return
         }
+
+        // Password strength checks (at least 8 characters, at least 1 digit)
+        if (password.length < 8) {
+          setError('Password must be at least 8 characters long')
+          return
+        }
+        if (!/\d/.test(password)) {
+          setError('Password must contain at least one digit (0-9)')
+          return
+        }
+
+        // Skills check
         if (selectedSkills.length === 0) {
           setError('Please select at least one skill')
           return
         }
 
-        // Move to Authenticator Setup step
-        // Generate TOTP secret in JS
-        const secret = new OTPAuth.Secret({ size: 20 })
-        const totp = new OTPAuth.TOTP({
-          issuer: 'TeamTrack',
-          label: email.trim(),
-          algorithm: 'SHA1',
-          digits: 6,
-          period: 30,
-          secret
-        })
+        // Check if email or employee ID already exists using RPC (bypasses RLS for anonymous check)
+        setLoading(true)
+        try {
+          const { data: checks, error: checkErr } = await supabase
+            .rpc('check_user_exists', {
+              p_email: emailLower,
+              p_employee_id: employeeId.trim()
+            })
 
-        setTotpSecretObj({
-          totp,
-          base32: secret.b32,
-          hex: secret.hex
-        })
-        setSignupStep(2)
+          if (checkErr) throw checkErr
+
+          const result = checks && checks[0]
+          if (result) {
+            if (result.email_exists) {
+              setError('A user with this email address already exists.')
+              setLoading(false)
+              return
+            }
+            if (result.employee_id_exists) {
+              setError('A user with this Employee ID already exists.')
+              setLoading(false)
+              return
+            }
+          }
+
+          // If validations & DB checks pass, proceed to Step 2
+          const secret = new OTPAuth.Secret({ size: 20 })
+          const totp = new OTPAuth.TOTP({
+            issuer: 'TeamTrack',
+            label: emailLower,
+            algorithm: 'SHA1',
+            digits: 6,
+            period: 30,
+            secret
+          })
+
+          setTotpSecretObj({
+            totp,
+            base32: secret.b32,
+            hex: secret.hex
+          })
+          setSignupStep(2)
+        } catch (err) {
+          setError(err.message)
+        } finally {
+          setLoading(false)
+        }
         return
       }
 
@@ -688,14 +740,6 @@ export const Login = () => {
                   <img src={qrCodeUrl} alt="Authenticator QR Code" className="h-full w-full" />
                 </div>
               )}
-
-              {/* Secret Key Backup (More compact) */}
-              <div className="space-y-1 text-center">
-                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-500 block">Or enter secret key manually</span>
-                <div className="rounded-lg border border-dark-800 bg-dark-950 px-3 py-1.5 font-mono text-[10px] text-brand-350 select-all max-w-xs mx-auto break-all">
-                  {totpSecretObj?.base32}
-                </div>
-              </div>
 
               {/* Verify input */}
               <div className="text-left max-w-xs mx-auto space-y-1.5">
