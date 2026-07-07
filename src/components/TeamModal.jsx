@@ -14,6 +14,7 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
   const [isAddingMember, setIsAddingMember] = useState(false)
   const [error, setError] = useState(null)
   const [successMsg, setSuccessMsg] = useState(null)
+  const [isActive, setIsActive] = useState(true)
 
   const isEditMode = !!team
 
@@ -23,12 +24,14 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
         setName(team.name)
         setDescription(team.description || '')
         setCategory(team.category || 'general')
+        setIsActive(team.is_active !== false)
         fetchMembers()
       } else {
         setName('')
         setDescription('')
         setCategory('general')
         setMembers([])
+        setIsActive(true)
       }
       setSearchQuery('')
       setSearchResults([])
@@ -111,7 +114,8 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
           .update({
             name: name.trim(),
             description: description.trim(),
-            category: category.toLowerCase().trim()
+            category: category.toLowerCase().trim(),
+            is_active: isActive
           })
           .eq('id', team.id)
 
@@ -381,11 +385,46 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
                 type="text"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none text-sm"
+                className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white placeholder-slate-505 focus:border-brand-500 focus:outline-none text-sm"
                 placeholder="e.g. general, development, qa..."
                 required
               />
             </div>
+
+            {isEditMode && (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Team Workspace Status
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsActive(true)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl border text-xs font-bold py-2.5 transition-all ${
+                      isActive
+                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400 font-extrabold shadow-[0_0_15px_rgba(16,185,129,0.05)]'
+                        : 'border-dark-700 bg-dark-950 text-slate-500 hover:text-slate-350'
+                    }`}
+                  >
+                    🟢 Active Space
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsActive(false)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl border text-xs font-bold py-2.5 transition-all ${
+                      !isActive
+                        ? 'border-amber-500/20 bg-amber-500/10 text-amber-400 font-extrabold shadow-[0_0_15px_rgba(245,158,11,0.05)]'
+                        : 'border-dark-700 bg-dark-950 text-slate-500 hover:text-slate-355'
+                    }`}
+                  >
+                    🔴 Deactivated Space
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1.5 leading-normal">
+                  Deactivating a team space locks task updates, leave logs, and sticky note changes in read-only mode for members.
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <button

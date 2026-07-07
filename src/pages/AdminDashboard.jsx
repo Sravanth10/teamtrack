@@ -33,6 +33,7 @@ import {
   FlaskConical,
   ShieldCheck
 } from 'lucide-react'
+import { calculateDynamicExperience } from '../lib/utils'
 
 const PREDEFINED_SKILLS = [
   'Artificial Intelligence (AI)',
@@ -169,6 +170,7 @@ export const AdminDashboard = () => {
   const [editSkills, setEditSkills] = useState([])
   const [skillsInput, setSkillsInput] = useState('')
   const [isSkillsDropdownOpen, setIsSkillsDropdownOpen] = useState(false)
+  const [editSkillLevel, setEditSkillLevel] = useState('foundation')
 
   // Milestones Tab States
   const [milestones, setMilestones] = useState([])
@@ -182,6 +184,7 @@ export const AdminDashboard = () => {
   const [isNonEngagedCollapsed, setIsNonEngagedCollapsed] = useState(false)
   const [isGeneralTeamsCollapsed, setIsGeneralTeamsCollapsed] = useState(false)
   const [isSpecificTeamsCollapsed, setIsSpecificTeamsCollapsed] = useState(false)
+  const [isInactiveTeamsCollapsed, setIsInactiveTeamsCollapsed] = useState(false)
 
   const handleExportCSV = async () => {
     setExporting(true)
@@ -309,6 +312,7 @@ export const AdminDashboard = () => {
           category,
           created_at,
           lab_id,
+          is_active,
           team_members (id),
           tasks (id, status)
         `)
@@ -732,6 +736,7 @@ export const AdminDashboard = () => {
     setEditPhoneNo(parsedPhone.number)
     setEditRapidJoiningDate(user.rapid_joining_date || '')
     setEditSkills(user.skills || [])
+    setEditSkillLevel(user.skill_level || 'foundation')
     setSkillsInput('')
     setIsSkillsDropdownOpen(false)
     setIsEditModalOpen(true)
@@ -763,18 +768,25 @@ export const AdminDashboard = () => {
     try {
       const rapidExp = calculateExperience(editRapidJoiningDate)
 
+      const updatePayload = {
+        name: editName.trim(),
+        role: editRole,
+        employee_id: editEmployeeId.trim(),
+        work_location: editWorkLocation.trim(),
+        rapid_joining_date: editRapidJoiningDate || null,
+        rapid_experience: rapidExp,
+        skills: editSkills,
+        phone_number: editPhoneNo.trim() ? `${editPhoneRegion} ${editPhoneNo.trim()}` : null
+      }
+
+      // Only supervisors can modify the skill level of admins and members
+      if (profile?.role === 'supervisor') {
+        updatePayload.skill_level = editSkillLevel
+      }
+
       const { error: updateErr } = await supabase
         .from('users')
-        .update({
-          name: editName.trim(),
-          role: editRole,
-          employee_id: editEmployeeId.trim(),
-          work_location: editWorkLocation.trim(),
-          rapid_joining_date: editRapidJoiningDate || null,
-          rapid_experience: rapidExp,
-          skills: editSkills,
-          phone_number: editPhoneNo.trim() ? `${editPhoneRegion} ${editPhoneNo.trim()}` : null
-        })
+        .update(updatePayload)
         .eq('id', editingUser.id)
 
       if (updateErr) throw updateErr
@@ -867,8 +879,9 @@ export const AdminDashboard = () => {
     }
   }
 
-  const generalTeams = teams.filter(t => (t.category || '').toLowerCase().trim() === 'general')
-  const specificTeams = teams.filter(t => (t.category || '').toLowerCase().trim() !== 'general')
+  const generalTeams = teams.filter(t => t.is_active !== false && (t.category || '').toLowerCase().trim() === 'general')
+  const specificTeams = teams.filter(t => t.is_active !== false && (t.category || '').toLowerCase().trim() !== 'general')
+  const inactiveTeams = teams.filter(t => t.is_active === false)
 
   const renderTeamCard = (team) => {
     const memberCount = team.team_members?.length || 0
@@ -880,18 +893,31 @@ export const AdminDashboard = () => {
     const doneCount = tasksList.filter(t => t.status === 'Done').length
     const totalTasks = tasksList.length
 
+    const isInactive = team.is_active === false
+
     return (
       <div
         key={team.id}
         onClick={() => handleCardClick(team.id)}
-        className="group relative flex flex-col justify-between rounded-2xl border border-dark-800 bg-dark-900 p-6 shadow-glass hover:border-brand-500/30 hover:shadow-glass-hover hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+        className={`group relative flex flex-col justify-between rounded-2xl border p-6 shadow-glass hover:shadow-glass-hover hover:-translate-y-1 transition-all duration-300 cursor-pointer ${
+          isInactive
+            ? 'bg-dark-950/40 border-dark-850 opacity-65 hover:opacity-80'
+            : 'border-dark-800 bg-dark-900 hover:border-brand-500/30'
+        }`}
       >
         <div>
           {/* Title Block */}
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-sans text-lg font-bold text-white transition-colors group-hover:text-brand-300">
-              {team.name}
-            </h3>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="font-sans text-lg font-bold text-white transition-colors group-hover:text-brand-300">
+                {team.name}
+              </h3>
+              {isInactive && (
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.25 rounded bg-amber-500/10 border border-amber-500/25 text-amber-400">
+                  Deactivated
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={(e) => handleEditClick(e, team)}
@@ -1192,6 +1218,33 @@ export const AdminDashboard = () => {
                         )}
                       </div>
                     )}
+
+                    {/* Inactive Teams Section */}
+                    {inactiveTeams.length > 0 && (
+                      <div className="space-y-4 pt-4 border-t border-dark-800/40">
+                        <button
+                          onClick={() => setIsInactiveTeamsCollapsed(!isInactiveTeamsCollapsed)}
+                          className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 rounded-full bg-slate-500" />
+                            <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                              Inactive Teams ({inactiveTeams.length})
+                            </h3>
+                          </div>
+                          {isInactiveTeamsCollapsed ? (
+                            <ChevronRight className="h-5 w-5 text-slate-500" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5 text-slate-500" />
+                          )}
+                        </button>
+                        {!isInactiveTeamsCollapsed && (
+                          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 pl-3">
+                            {inactiveTeams.map((team) => renderTeamCard(team))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
@@ -1237,8 +1290,12 @@ export const AdminDashboard = () => {
                             </div>
                             <div className="flex items-center gap-1.5">
                               <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Rapid Exp:</span>
-                              <span className="text-slate-200">{u.rapid_experience || 'N/A'} <span className="text-slate-500 text-[10px]">({u.rapid_joining_date || 'N/A'})</span></span>
+                              <span className="text-slate-200">{calculateDynamicExperience(u.rapid_joining_date)} <span className="text-slate-500 text-[10px]">({u.rapid_joining_date || 'N/A'})</span></span>
                             </div>
+                            <div className="flex items-center gap-1.5">
+                               <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Skill Level:</span>
+                               <span className="text-slate-200 capitalize">{u.skill_level || 'foundation'}</span>
+                             </div>
                           </div>
 
                           {/* Skills tags */}
@@ -1418,11 +1475,15 @@ export const AdminDashboard = () => {
                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Phone Number</span>
                                 <span className="font-semibold text-slate-205 block">{user.phone_number || 'N/A'}</span>
                               </div>
-                              <div>
-                                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Rapid Build Exp</span>
-                                <span className="font-semibold text-slate-205 block">{user.rapid_experience || 'N/A'}</span>
-                                <span className="text-[10px] text-slate-500">Joined: {user.rapid_joining_date || 'N/A'}</span>
-                              </div>
+                                                           <div>
+                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Rapid Build Exp</span>
+                                 <span className="font-semibold text-slate-205 block">{calculateDynamicExperience(user.rapid_joining_date)}</span>
+                                 <span className="text-[10px] text-slate-500">Joined: {user.rapid_joining_date || 'N/A'}</span>
+                               </div>
+                               <div>
+                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Skill Level</span>
+                                 <span className="font-semibold text-slate-205 block capitalize">{user.skill_level || 'foundation'}</span>
+                               </div>
                               <div className="col-span-2 pt-2 border-t border-dark-800/60 flex items-center justify-between">
                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550">Team Workspace</span>
                                 <span className="font-bold text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded text-[10px]">
@@ -1962,6 +2023,33 @@ export const AdminDashboard = () => {
                   className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
                 />
               </div>
+
+              {/* Skill Level Selection (Supervisors only, admins/members read-only) */}
+              {profile?.role === 'supervisor' && editRole !== 'supervisor' ? (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Skill Level
+                  </label>
+                  <select
+                    value={editSkillLevel}
+                    onChange={(e) => setEditSkillLevel(e.target.value)}
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm capitalize"
+                  >
+                    <option value="foundation">Foundation</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Skill Level (Read Only)
+                  </label>
+                  <div className="w-full rounded-lg border border-dark-800 bg-dark-950/50 px-4 py-2.5 text-slate-400 text-sm capitalize select-none">
+                    {editRole === 'supervisor' ? 'management' : editSkillLevel}
+                  </div>
+                </div>
+              )}
 
               {/* Edit Skills tags search and select */}
               <div className="relative">

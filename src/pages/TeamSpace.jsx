@@ -35,6 +35,7 @@ export const TeamSpace = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [accessDenied, setAccessDenied] = useState(false)
+  const [taskFilter, setTaskFilter] = useState('all')
 
   // Modals
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
@@ -504,6 +505,7 @@ export const TeamSpace = () => {
     }
   }
 
+
   const handleDeleteSticky = async (noteId) => {
     if (!window.confirm('Are you sure you want to delete this sticky note?')) return
 
@@ -546,12 +548,19 @@ export const TeamSpace = () => {
     t.created_by === profile.id
   )?.description : ''
 
+  // Apply task filtering based on selection
+  const filteredTasks = tasks.filter(t => {
+    if (taskFilter === 'all') return true
+    if (taskFilter === 'me') return t.created_by === profile?.id
+    return t.created_by === taskFilter
+  })
+
   // Filter tasks into columns (excluding Leave records)
   const columns = {
-    'To Do': tasks.filter(t => t.status === 'To Do' && t.title !== 'Leave'),
-    'In Progress': tasks.filter(t => t.status === 'In Progress' && t.title !== 'Leave'),
-    'Blocked': tasks.filter(t => t.status === 'Blocked' && t.title !== 'Leave'),
-    'Done': tasks.filter(t => t.status === 'Done' && t.title !== 'Leave')
+    'To Do': filteredTasks.filter(t => t.status === 'To Do' && t.title !== 'Leave'),
+    'In Progress': filteredTasks.filter(t => t.status === 'In Progress' && t.title !== 'Leave'),
+    'Blocked': filteredTasks.filter(t => t.status === 'Blocked' && t.title !== 'Leave'),
+    'Done': filteredTasks.filter(t => t.status === 'Done' && t.title !== 'Leave')
   }
 
   if (loading) {
@@ -656,12 +665,41 @@ export const TeamSpace = () => {
               </div>
             )}
 
+
             {activeView === 'board' ? (
               <>
+                {/* Task Filter Dropdown */}
+                <select
+                  value={taskFilter}
+                  onChange={(e) => setTaskFilter(e.target.value)}
+                  className="rounded-xl border border-dark-700 bg-dark-900 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500/60 font-semibold transition hover:bg-dark-800 focus:ring-1 focus:ring-brand-500 cursor-pointer"
+                >
+                  {profile && (profile.role === 'admin' || profile.role === 'supervisor') ? (
+                    <>
+                      <option value="all">🔍 All Members</option>
+                      <option value="me">👤 My Tasks</option>
+                      {members.map((m) => {
+                        if (m.user_id === profile.id) return null
+                        return (
+                          <option key={m.user_id} value={m.user_id}>
+                            👤 {m.users?.name || m.email}
+                          </option>
+                        )
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      <option value="all">🌐 All Tasks</option>
+                      <option value="me">👤 My Tasks</option>
+                    </>
+                  )}
+                </select>
+
                 {profile && profile.role === 'member' && (
                   <button
                     onClick={() => setIsLeaveModalOpen(true)}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-dark-900 border border-dark-700 hover:bg-dark-800 text-slate-350 hover:text-white font-semibold text-sm px-4 py-2.5 transition"
+                    disabled={!team?.is_active}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-dark-900 border border-dark-700 hover:bg-dark-800 text-slate-350 hover:text-white font-semibold text-sm px-4 py-2.5 transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Calendar className="h-4.5 w-4.5 text-brand-400" />
                     Report Leave
@@ -669,7 +707,7 @@ export const TeamSpace = () => {
                 )}
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
-                  disabled={isTodayOnLeave}
+                  disabled={isTodayOnLeave || !team?.is_active}
                   className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm px-4 py-2.5 transition shadow-glow-brand disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="h-4.5 w-4.5" />
@@ -680,7 +718,8 @@ export const TeamSpace = () => {
               (profile?.role === 'admin' || profile?.role === 'supervisor') && (
                 <button
                   onClick={() => handleOpenStickyModal()}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm px-4 py-2.5 transition shadow-glow-brand"
+                  disabled={!team?.is_active}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm px-4 py-2.5 transition shadow-glow-brand disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus className="h-4.5 w-4.5" />
                   Add Sticky Note
@@ -689,6 +728,24 @@ export const TeamSpace = () => {
             )}
           </div>
         </div>
+
+        {/* Archived Team Warning Banner */}
+        {team && !team.is_active && (
+          <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-glass">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-lg">📁</span>
+              <div>
+                <h4 className="font-sans text-sm font-bold text-white">This Team Space is Archived (Read-Only)</h4>
+                <p className="text-xs text-slate-455 mt-0.5">
+                  Admins or supervisors have set this team workspace to inactive. No new tasks or updates can be added.
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 bg-amber-500/20 px-3 py-1 rounded-lg border border-amber-500/30">
+              Space Locked
+            </span>
+          </div>
+        )}
 
         {/* Leave Warning Banner */}
         {isTodayOnLeave && (
@@ -816,7 +873,7 @@ export const TeamSpace = () => {
                               <Pin className="h-3 w-3 shrink-0 rotate-45" />
                               {note.note_type}
                             </span>
-                            {isAdminOrSupervisor && (
+                            {isAdminOrSupervisor && team?.is_active && (
                               <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={() => handleOpenStickyModal(note)}
@@ -950,7 +1007,7 @@ export const TeamSpace = () => {
           }}
           onTaskUpdated={fetchData}
           onTaskDeleted={handleTaskDeleted}
-          isReadOnly={isTodayOnLeave}
+          isReadOnly={isTodayOnLeave || !team?.is_active}
         />
       )}
 

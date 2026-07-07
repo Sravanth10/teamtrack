@@ -163,6 +163,52 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Idle timeout: auto-logout after 1 hour of inactivity
+  useEffect(() => {
+    if (!user) return
+
+    // Initialize/update last active on mount
+    localStorage.setItem('teamtrack_last_active', Date.now().toString())
+
+    const handleActivity = () => {
+      // Throttle updates to localStorage to once every 10 seconds
+      const now = Date.now()
+      const lastActive = localStorage.getItem('teamtrack_last_active')
+      if (!lastActive || now - Number(lastActive) > 10000) {
+        localStorage.setItem('teamtrack_last_active', now.toString())
+      }
+    }
+
+    // Set listeners for activity
+    window.addEventListener('mousemove', handleActivity)
+    window.addEventListener('keydown', handleActivity)
+    window.addEventListener('click', handleActivity)
+    window.addEventListener('scroll', handleActivity)
+    window.addEventListener('touchstart', handleActivity)
+
+    // Check inactivity every 10 seconds
+    const interval = setInterval(() => {
+      const lastActive = localStorage.getItem('teamtrack_last_active')
+      if (lastActive) {
+        const elapsed = Date.now() - Number(lastActive)
+        const ONE_HOUR = 60 * 60 * 1000 // 1 hour in ms
+        if (elapsed > ONE_HOUR) {
+          logout()
+          alert('You have been logged out due to 1 hour of inactivity.')
+        }
+      }
+    }, 10000)
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity)
+      window.removeEventListener('keydown', handleActivity)
+      window.removeEventListener('click', handleActivity)
+      window.removeEventListener('scroll', handleActivity)
+      window.removeEventListener('touchstart', handleActivity)
+      clearInterval(interval)
+    }
+  }, [user, logout])
+
   const isSupervisor = profile?.role === 'supervisor'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'supervisor'
 

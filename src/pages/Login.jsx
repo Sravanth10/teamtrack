@@ -22,6 +22,7 @@ import {
   Briefcase,
   Phone
 } from 'lucide-react'
+import { calculateDynamicExperience } from '../lib/utils'
 
 const PREDEFINED_SKILLS = [
   // AI & Generative AI
@@ -82,34 +83,6 @@ const REGIONS = [
   { code: '+65', country: 'Singapore', digits: 8, placeholder: '81234567' },
   { code: '+971', country: 'UAE', digits: 9, placeholder: '501234567' }
 ]
-
-const calculateExperience = (joiningDateStr) => {
-  if (!joiningDateStr) return '0 months'
-  const joinDate = new Date(joiningDateStr)
-  const currentDate = new Date()
-  
-  let years = currentDate.getFullYear() - joinDate.getFullYear()
-  let months = currentDate.getMonth() - joinDate.getMonth()
-  let days = currentDate.getDate() - joinDate.getDate()
-  
-  if (days < 0) {
-    months -= 1
-  }
-  if (months < 0) {
-    years -= 1
-    months += 12
-  }
-  
-  const yearText = years > 0 ? `${years} yr${years > 1 ? 's' : ''}` : ''
-  const monthText = months > 0 ? `${months} mo${months > 1 ? 's' : ''}` : ''
-  
-  if (yearText && monthText) {
-    return `${yearText}, ${monthText}`
-  }
-  if (yearText) return yearText
-  if (monthText) return monthText
-  return '0 months'
-}
 
 export const Login = () => {
   const { login, resetPassword, user, loading: authLoading } = useAuth()
@@ -324,7 +297,7 @@ export const Login = () => {
                 rapid_joining_date: rapidJoiningDate,
                 work_location: workLocation.trim(),
                 employee_id: employeeId.trim(),
-                rapid_experience: calculateExperience(rapidJoiningDate),
+                rapid_experience: calculateDynamicExperience(rapidJoiningDate),
                 phone_number: `${phoneRegion} ${phoneNo}`
               }
             }

@@ -5,13 +5,13 @@ export const UpdatePopup = () => {
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
-    // Release Date: June 30, 2026, 11:00:00 UTC (16:30:00 IST)
-    const RELEASE_TIME = new Date('2026-06-30T11:00:00Z').getTime()
-    const EXPIRATION_TIME = RELEASE_TIME + (48 * 60 * 60 * 1000) // 48 Hours
+    // Release Date: July 7, 2026, 09:08:59 UTC (14:38:59 IST)
+    const RELEASE_TIME = new Date('2026-07-07T09:08:59Z').getTime()
+    const EXPIRATION_TIME = RELEASE_TIME + (24 * 60 * 60 * 1000) // 24 Hours
     const currentTime = Date.now()
 
     const isWithinActiveWindow = currentTime < EXPIRATION_TIME
-    const isDismissed = sessionStorage.getItem('teamtrack_v3_1_dismissed') === 'true'
+    const isDismissed = sessionStorage.getItem('teamtrack_v4_0_dismissed') === 'true'
 
     if (isWithinActiveWindow && !isDismissed) {
       // Delay showing the popup slightly for a smoother entry feel
@@ -23,7 +23,7 @@ export const UpdatePopup = () => {
   }, [])
 
   const handleDismiss = () => {
-    sessionStorage.setItem('teamtrack_v3_1_dismissed', 'true')
+    sessionStorage.setItem('teamtrack_v4_0_dismissed', 'true')
     setIsOpen(false)
   }
 
@@ -51,14 +51,14 @@ export const UpdatePopup = () => {
           </div>
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-brand-400">Release Update</span>
-            <h4 className="font-sans text-sm font-extrabold text-white">What's New in v3.1</h4>
+            <h4 className="font-sans text-sm font-extrabold text-white">What's New in v4.0</h4>
           </div>
         </div>
 
         {/* Content List */}
         <div className="space-y-3 my-4 pr-2 max-h-[40vh] overflow-y-auto custom-scrollbar">
-          <p className="text-xs text-slate-400 leading-relaxed">
-            We've rolled out a major update with new features and UX enhancements to optimize your workspaces:
+          <p className="text-xs text-slate-405 leading-relaxed">
+            We've rolled out a brand-new update containing powerful role assignments, custom filtering, and workspace archive tools:
           </p>
 
           <div className="space-y-2 text-xs">
@@ -67,8 +67,8 @@ export const UpdatePopup = () => {
                 <ChevronRight className="h-3 w-3" />
               </span>
               <div>
-                <span className="font-bold text-slate-200">Security & Update Notes (v3.1)</span>
-                <p className="text-slate-450 text-[11px] mt-0.5">Tasks are protected against edits/moves from other members. Daily updates can now be edited or deleted by their author and admins.</p>
+                <span className="font-bold text-slate-200">Dynamic User Skill Levels</span>
+                <p className="text-slate-450 text-[11px] mt-0.5">Users are assigned a default level (Foundation). Supervisors can adjust skill levels (Foundation, Intermediate, Advanced) from user profiles.</p>
               </div>
             </div>
 
@@ -77,8 +77,8 @@ export const UpdatePopup = () => {
                 <ChevronRight className="h-3 w-3" />
               </span>
               <div>
-                <span className="font-bold text-slate-200">Multi-Workspace Support</span>
-                <p className="text-slate-450 text-[11px] mt-0.5">Members can now belong to and toggle between multiple workspaces.</p>
+                <span className="font-bold text-slate-200">Dashboard Task Filtering</span>
+                <p className="text-slate-450 text-[11px] mt-0.5">Filter team tasks on the fly! Members can toggle 'My Tasks', while supervisors/admins can filter by any specific member's workflow.</p>
               </div>
             </div>
 
@@ -87,8 +87,8 @@ export const UpdatePopup = () => {
                 <ChevronRight className="h-3 w-3" />
               </span>
               <div>
-                <span className="font-bold text-slate-200">Task Types & Mandatory Deadlines</span>
-                <p className="text-slate-450 text-[11px] mt-0.5">Choose Assignment (mandatory deadline) or Exploration/Other. Creator names are now visible on cards.</p>
+                <span className="font-bold text-slate-200">Space Activation / Deactivation</span>
+                <p className="text-slate-450 text-[11px] mt-0.5">Toggle active status in team settings. Deactivated teams are set to read-only (blocking task, leave, or sticky edits) and grouped under a new collapsed section.</p>
               </div>
             </div>
 
@@ -97,28 +97,8 @@ export const UpdatePopup = () => {
                 <ChevronRight className="h-3 w-3" />
               </span>
               <div>
-                <span className="font-bold text-slate-200">Self-Service Profiles</span>
-                <p className="text-slate-450 text-[11px] mt-0.5">Members can directly edit their skills set, phone number, location, Employee ID, and Joining Date.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <span className="mt-1 rounded bg-brand-500/20 text-brand-400 p-0.5 shrink-0">
-                <ChevronRight className="h-3 w-3" />
-              </span>
-              <div>
-                <span className="font-bold text-slate-200">Dynamic User Invites</span>
-                <p className="text-slate-450 text-[11px] mt-0.5">Real-time user search when inviting members, with instant recovery for rejected users.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <span className="mt-1 rounded bg-brand-500/20 text-brand-400 p-0.5 shrink-0">
-                <ChevronRight className="h-3 w-3" />
-              </span>
-              <div>
-                <span className="font-bold text-slate-200">Engaged Overview & Milestones</span>
-                <p className="text-slate-450 text-[11px] mt-0.5">Classify non-engaged users in general-only teams, and track milestones with team and developer details.</p>
+                <span className="font-bold text-slate-200">Theme Toggle on Team Selection</span>
+                <p className="text-slate-450 text-[11px] mt-0.5">A clean dark/light mode toggle button has been added to the member select team page with corrected card padding layouts.</p>
               </div>
             </div>
           </div>

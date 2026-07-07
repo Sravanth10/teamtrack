@@ -13,7 +13,8 @@ import TasksArchive from './pages/TasksArchive'
 import Navbar from './components/Navbar'
 import UpdatePopup from './components/UpdatePopup'
 import InstructionsPopup from './components/InstructionsPopup'
-import { Loader, AlertCircle, ShieldAlert, CheckCircle, Clock, Compass, Users } from 'lucide-react'
+import { Loader, AlertCircle, ShieldAlert, CheckCircle, Clock, Compass, Users, Sun, Moon } from 'lucide-react'
+import { calculateDynamicExperience } from './lib/utils'
 
 // 1. Root redirector that inspects user session, role, approval status, and TOTP status and sends them to the appropriate dashboard
 const RootRedirector = () => {
@@ -215,6 +216,27 @@ const SelectTeamView = () => {
   const { user, profile, logout } = useAuth()
   const [userTeams, setUserTeams] = useState([])
   const [loading, setLoading] = useState(true)
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
+
+  useEffect(() => {
+    const activeTheme = localStorage.getItem('theme') || 'dark'
+    if (activeTheme === 'light') {
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(newTheme)
+    localStorage.setItem('theme', newTheme)
+    if (newTheme === 'light') {
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+    }
+  }
 
   useEffect(() => {
     if (user) {
@@ -226,7 +248,8 @@ const SelectTeamView = () => {
             id,
             name,
             description,
-            category
+            category,
+            is_active
           )
         `)
         .eq('user_id', user.id)
@@ -254,12 +277,25 @@ const SelectTeamView = () => {
           <Compass className="h-6 w-6 text-brand-500" />
           TeamTrack
         </span>
-        <button 
-          onClick={logout} 
-          className="text-xs text-slate-400 bg-dark-900 border border-dark-800 px-3 py-1.5 rounded-lg hover:text-white transition"
-        >
-          Sign Out
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            className="rounded-lg p-2 bg-dark-900 border border-dark-800 text-slate-400 hover:bg-dark-800 hover:text-white transition"
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-4.5 w-4.5 text-amber-400" />
+            ) : (
+              <Moon className="h-4.5 w-4.5 text-indigo-400" />
+            )}
+          </button>
+          <button 
+            onClick={logout} 
+            className="text-xs text-slate-400 bg-dark-900 border border-dark-800 px-3 py-1.5 rounded-lg hover:text-white transition font-semibold"
+          >
+            Sign Out
+          </button>
+        </div>
       </nav>
       
       <div className="flex-1 flex flex-col justify-center items-center p-6 max-w-4xl mx-auto w-full space-y-8 my-auto">
@@ -271,30 +307,44 @@ const SelectTeamView = () => {
         </div>
 
         <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 w-full max-w-2xl">
-          {userTeams.map((team) => (
-            <a
-              key={team.id}
-              href={`/team/${team.id}`}
-              className="rounded-2xl border border-dark-800 bg-dark-900 p-6 hover:border-brand-500/30 transition-all shadow-glass flex flex-col justify-between text-left group"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-bold text-white group-hover:text-brand-400 transition-colors">
-                    {team.name}
-                  </h3>
-                  <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/20 text-brand-400 capitalize">
-                    {team.category || 'general'}
-                  </span>
+          {userTeams.map((team) => {
+            const isInactiveStatus = team.is_active === false
+            return (
+              <a
+                key={team.id}
+                href={`/team/${team.id}`}
+                className={`rounded-2xl border p-6 transition-all shadow-glass flex flex-col justify-between text-left group ${
+                  isInactiveStatus
+                    ? 'bg-dark-950/40 border-dark-850 opacity-60 hover:opacity-80'
+                    : 'border-dark-800 bg-dark-900 hover:border-brand-500/30'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-base font-bold text-white group-hover:text-brand-400 transition-colors">
+                        {team.name}
+                      </h3>
+                      {isInactiveStatus && (
+                        <span className="text-[9px] uppercase font-bold px-1.5 py-0.25 rounded bg-amber-500/10 border border-amber-500/25 text-amber-400">
+                          Deactivated
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/20 text-brand-400 capitalize">
+                      {team.category || 'general'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                    {team.description || 'No description provided.'}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
-                  {team.description || 'No description provided.'}
-                </p>
-              </div>
-              <div className="pt-4 border-t border-dark-800/40 text-[10px] text-slate-500 flex justify-end font-semibold group-hover:text-white transition-colors">
-                Enter Team Board &rarr;
-              </div>
-            </a>
-          ))}
+                <div className="pt-4 border-t border-dark-800/40 text-[10px] text-slate-500 flex justify-end font-semibold group-hover:text-white transition-colors">
+                  {isInactiveStatus ? 'View Team Board (Read-Only) \u2192' : 'Enter Team Board \u2192'}
+                </div>
+              </a>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -384,7 +434,11 @@ const PendingApprovalView = () => {
               </div>
               <div>
                 <span className="text-xs text-slate-505 block">Rapid Build Experience</span>
-                <span className="text-slate-200 font-medium">{profile.rapid_experience || 'N/A'} <span className="text-slate-500 text-[10px]">({profile.rapid_joining_date || 'N/A'})</span></span>
+                 <span className="text-slate-250 font-medium">{calculateDynamicExperience(profile.rapid_joining_date)} <span className="text-slate-500 text-[10px]">({profile.rapid_joining_date || 'N/A'})</span></span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-505 block">Skill Level</span>
+                <span className="text-slate-200 font-semibold capitalize">{profile.skill_level || 'foundation'}</span>
               </div>
             </div>
 
@@ -468,6 +522,7 @@ function App() {
     <AuthProvider>
       <Router>
         <InstructionsPopup />
+        <UpdatePopup />
         <Routes>
           {/* Public login/register page */}
           <Route path="/login" element={<Login />} />

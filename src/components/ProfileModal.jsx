@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
 import { X, Loader, Plus, Phone, MapPin, Award, User } from 'lucide-react'
+import { calculateDynamicExperience } from '../lib/utils'
 
 const REGION_CODES = [
   { code: '+91', country: 'India', length: 10, placeholder: '98765 43210' },
@@ -175,12 +176,18 @@ export const ProfileModal = ({ isOpen, onClose }) => {
               <span className="text-slate-505 block mb-0.5">Email Address</span>
               <span className="text-slate-300 font-semibold font-mono">{profile?.email || 'N/A'}</span>
             </div>
-            <div>
-              <span className="text-slate-550 block mb-0.5">Rapid Build Experience</span>
-              <span className="text-slate-300 font-medium">
-                {profile?.rapid_experience || 'N/A'}
-              </span>
-            </div>
+             <div>
+                <span className="text-slate-550 block mb-0.5">Rapid Build Experience</span>
+                <span className="text-slate-355 font-medium">
+                  {calculateDynamicExperience(profile?.rapid_joining_date)}
+                </span>
+             </div>
+             <div>
+                <span className="text-slate-550 block mb-0.5">Skill Level</span>
+                <span className="text-slate-300 font-semibold capitalize">
+                  {profile?.skill_level || 'foundation'}
+                </span>
+             </div>
             {profile && (profile.role === 'member' || profile.role === 'admin') && (
               <div>
                 <span className="text-slate-550 block mb-0.5">Lab Assignment</span>

@@ -389,7 +389,7 @@ const SupervisorDashboard = () => {
                   type="text"
                   value={newLabName}
                   onChange={(e) => setNewLabName(e.target.value)}
-                  placeholder="e.g. Lab 1, Lab 3..."
+                  placeholder="e.g. swift, stride..."
                   className="w-full rounded-xl border border-dark-700 bg-dark-800 px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-brand-500/60 transition"
                   onKeyDown={(e) => e.key === 'Enter' && handleCreateLab()}
                 />
