@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 import Navbar from '../components/Navbar'
 import TaskCard from '../components/TaskCard'
 import TaskDetailsModal from '../components/TaskDetailsModal'
+import ProjectDetailsModal from '../components/ProjectDetailsModal'
 import { 
   Plus, 
   ArrowLeft, 
@@ -39,6 +40,7 @@ export const TeamSpace = () => {
 
   // Modals
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
   const [activeTask, setActiveTask] = useState(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
@@ -636,6 +638,34 @@ export const TeamSpace = () => {
                   {team.description}
                 </p>
               )}
+              {profile?.role === 'supervisor' && (team?.customer || team?.received_date || team?.bg_market || team?.stage) && (
+                <div className="flex items-center gap-4 flex-wrap mt-2 text-[11px] text-slate-400">
+                  {team.customer && (
+                    <div className="flex items-center gap-1 bg-dark-900 border border-dark-800 px-2.5 py-1 rounded-lg">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Customer:</span>
+                      <span className="text-white font-medium">{team.customer}</span>
+                    </div>
+                  )}
+                  {team.received_date && (
+                    <div className="flex items-center gap-1 bg-dark-900 border border-dark-800 px-2.5 py-1 rounded-lg">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Received:</span>
+                      <span className="text-white font-medium">{new Date(team.received_date).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {team.bg_market && (
+                    <div className="flex items-center gap-1 bg-dark-900 border border-dark-800 px-2.5 py-1 rounded-lg">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">BG/Market:</span>
+                      <span className="text-white font-medium capitalize">{team.bg_market}</span>
+                    </div>
+                  )}
+                  {team.stage && (
+                    <div className="flex items-center gap-1 bg-dark-900 border border-dark-800 px-2.5 py-1 rounded-lg">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Stage:</span>
+                      <span className="text-white font-medium capitalize">{team.stage}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -665,6 +695,16 @@ export const TeamSpace = () => {
               </div>
             )}
 
+
+            {profile && (profile.role === 'admin' || profile.role === 'supervisor') && (
+              <button
+                onClick={() => setIsProjectModalOpen(true)}
+                className="flex items-center justify-center gap-2 rounded-xl bg-dark-900 border border-dark-700 hover:bg-dark-850 text-slate-350 hover:text-white font-semibold text-sm px-4 py-2.5 transition"
+              >
+                <FileText className="h-4.5 w-4.5 text-brand-400" />
+                Project Details
+              </button>
+            )}
 
             {activeView === 'board' ? (
               <>
@@ -1008,6 +1048,17 @@ export const TeamSpace = () => {
           onTaskUpdated={fetchData}
           onTaskDeleted={handleTaskDeleted}
           isReadOnly={isTodayOnLeave || !team?.is_active}
+        />
+      )}
+
+      {/* Project Details Modal */}
+      {isProjectModalOpen && (
+        <ProjectDetailsModal
+          teamId={teamId}
+          teamName={team?.name || ''}
+          isOpen={isProjectModalOpen}
+          onClose={() => setIsProjectModalOpen(false)}
+          onSaved={fetchData}
         />
       )}
 

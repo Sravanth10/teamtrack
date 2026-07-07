@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { X, Plus, UserMinus, UserPlus, Users, Loader } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
 
 export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
   const [name, setName] = useState('')
@@ -16,6 +17,15 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
   const [successMsg, setSuccessMsg] = useState(null)
   const [isActive, setIsActive] = useState(true)
 
+  // Supervisor fields
+  const { profile } = useAuth()
+  const [receivedDate, setReceivedDate] = useState('')
+  const [customer, setCustomer] = useState('')
+  const [bgMarket, setBgMarket] = useState('')
+  const [bgMarketCustom, setBgMarketCustom] = useState('')
+  const [stage, setStage] = useState('')
+  const [stageCustom, setStageCustom] = useState('')
+
   const isEditMode = !!team
 
   useEffect(() => {
@@ -26,12 +36,50 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
         setCategory(team.category || 'general')
         setIsActive(team.is_active !== false)
         fetchMembers()
+
+        // Supervisor fields:
+        setReceivedDate(team.received_date || '')
+        setCustomer(team.customer || '')
+
+        const standardBgMarkets = ['TSS', 'TTH', 'CMI', 'CBG', 'LSHCERU', 'BFSI', 'India Govt', 'MFG']
+        if (team.bg_market) {
+          if (standardBgMarkets.includes(team.bg_market)) {
+            setBgMarket(team.bg_market)
+            setBgMarketCustom('')
+          } else {
+            setBgMarket('custom')
+            setBgMarketCustom(team.bg_market)
+          }
+        } else {
+          setBgMarket('')
+          setBgMarketCustom('')
+        }
+
+        const standardStages = ['prototype', 'poc', 'project', 'pre-PRD', 'PRD', 'MVP', 'pilot']
+        if (team.stage) {
+          if (standardStages.includes(team.stage)) {
+            setStage(team.stage)
+            setStageCustom('')
+          } else {
+            setStage('custom')
+            setStageCustom(team.stage)
+          }
+        } else {
+          setStage('')
+          setStageCustom('')
+        }
       } else {
         setName('')
         setDescription('')
         setCategory('general')
         setMembers([])
         setIsActive(true)
+        setReceivedDate('')
+        setCustomer('')
+        setBgMarket('')
+        setBgMarketCustom('')
+        setStage('')
+        setStageCustom('')
       }
       setSearchQuery('')
       setSearchResults([])
@@ -109,29 +157,48 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
     try {
       if (isEditMode) {
         // Update existing team
+        const updatePayload = {
+          name: name.trim(),
+          description: description.trim(),
+          category: category.toLowerCase().trim(),
+          is_active: isActive
+        }
+
+        if (profile?.role === 'supervisor') {
+          updatePayload.received_date = receivedDate ? receivedDate : null
+          updatePayload.customer = customer.trim() ? customer.trim() : null
+          updatePayload.bg_market = bgMarket === 'custom' ? bgMarketCustom.trim() : bgMarket
+          updatePayload.stage = stage === 'custom' ? stageCustom.trim() : stage
+        }
+
         const { error: updateErr } = await supabase
           .from('teams')
-          .update({
-            name: name.trim(),
-            description: description.trim(),
-            category: category.toLowerCase().trim(),
-            is_active: isActive
-          })
+          .update(updatePayload)
           .eq('id', team.id)
 
         if (updateErr) throw updateErr
       } else {
         // Create new team
         const { data: { user } } = await supabase.auth.getUser()
+
+        const insertPayload = {
+          name: name.trim(),
+          description: description.trim(),
+          category: category.toLowerCase().trim(),
+          created_by: user.id,
+          lab_id: labId
+        }
+
+        if (profile?.role === 'supervisor') {
+          insertPayload.received_date = receivedDate ? receivedDate : null
+          insertPayload.customer = customer.trim() ? customer.trim() : null
+          insertPayload.bg_market = bgMarket === 'custom' ? bgMarketCustom.trim() : bgMarket
+          insertPayload.stage = stage === 'custom' ? stageCustom.trim() : stage
+        }
+
         const { error: insertErr } = await supabase
           .from('teams')
-          .insert({
-            name: name.trim(),
-            description: description.trim(),
-            category: category.toLowerCase().trim(),
-            created_by: user.id,
-            lab_id: labId
-          })
+          .insert(insertPayload)
 
         if (insertErr) throw insertErr
       }
@@ -423,6 +490,104 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
                 <p className="text-[10px] text-slate-500 mt-1.5 leading-normal">
                   Deactivating a team space locks task updates, leave logs, and sticky note changes in read-only mode for members.
                 </p>
+              </div>
+            )}
+
+            {/* Supervisor-Only Meta Fields */}
+            {profile?.role === 'supervisor' && (
+              <div className="border-t border-dark-800/80 pt-4 space-y-4">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-brand-400">
+                  Supervisor Meta Details
+                </h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Received Date
+                    </label>
+                    <input
+                      type="date"
+                      value={receivedDate}
+                      onChange={(e) => setReceivedDate(e.target.value)}
+                      className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Customer
+                    </label>
+                    <input
+                      type="text"
+                      value={customer}
+                      onChange={(e) => setCustomer(e.target.value)}
+                      className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none text-sm"
+                      placeholder="Customer Name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      BG/Market
+                    </label>
+                    <select
+                      value={bgMarket}
+                      onChange={(e) => setBgMarket(e.target.value)}
+                      className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
+                    >
+                      <option value="">Select BG/Market</option>
+                      <option value="TSS">TSS</option>
+                      <option value="TTH">TTH</option>
+                      <option value="CMI">CMI</option>
+                      <option value="CBG">CBG</option>
+                      <option value="LSHCERU">LSHCERU</option>
+                      <option value="BFSI">BFSI</option>
+                      <option value="India Govt">India Govt</option>
+                      <option value="MFG">MFG</option>
+                      <option value="custom">Other (Custom)</option>
+                    </select>
+                    {bgMarket === 'custom' && (
+                      <input
+                        type="text"
+                        value={bgMarketCustom}
+                        onChange={(e) => setBgMarketCustom(e.target.value)}
+                        className="mt-2 w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none text-sm"
+                        placeholder="Enter custom BG/Market"
+                        required
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Stage
+                    </label>
+                    <select
+                      value={stage}
+                      onChange={(e) => setStage(e.target.value)}
+                      className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
+                    >
+                      <option value="">Select Stage</option>
+                      <option value="prototype">Prototype</option>
+                      <option value="poc">POC</option>
+                      <option value="project">Project</option>
+                      <option value="pre-PRD">Pre-PRD</option>
+                      <option value="PRD">PRD</option>
+                      <option value="MVP">MVP</option>
+                      <option value="pilot">Pilot</option>
+                      <option value="custom">Other (Custom)</option>
+                    </select>
+                    {stage === 'custom' && (
+                      <input
+                        type="text"
+                        value={stageCustom}
+                        onChange={(e) => setStageCustom(e.target.value)}
+                        className="mt-2 w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none text-sm"
+                        placeholder="Enter custom Stage"
+                        required
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 

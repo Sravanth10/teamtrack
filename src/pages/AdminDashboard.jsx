@@ -313,6 +313,10 @@ export const AdminDashboard = () => {
           created_at,
           lab_id,
           is_active,
+          received_date,
+          customer,
+          bg_market,
+          stage,
           team_members (id),
           tasks (id, status)
         `)
@@ -1003,6 +1007,36 @@ export const AdminDashboard = () => {
             <span>Enter Team Space</span>
             <ChevronRight className="h-4 w-4" />
           </div>
+
+          {/* Supervisor-Only Meta Data */}
+          {profile?.role === 'supervisor' && (team.customer || team.received_date || team.bg_market || team.stage) && (
+            <div className="mt-4 pt-4 border-t border-dark-800/60 grid grid-cols-2 gap-x-3 gap-y-3 text-[11px] text-slate-400">
+              {team.customer && (
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Customer</span>
+                  <span className="text-white truncate block font-medium">{team.customer}</span>
+                </div>
+              )}
+              {team.received_date && (
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Received Date</span>
+                  <span className="text-white block font-medium">{new Date(team.received_date).toLocaleDateString()}</span>
+                </div>
+              )}
+              {team.bg_market && (
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">BG/Market</span>
+                  <span className="text-white truncate block font-medium capitalize">{team.bg_market}</span>
+                </div>
+              )}
+              {team.stage && (
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Stage</span>
+                  <span className="text-white truncate block font-medium capitalize">{team.stage}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )
