@@ -34,21 +34,21 @@ export const TeamSpace = () => {
 
   const renderLabLogo = (lab, className = "h-4 w-4") => {
     if (!lab) return <FlaskConical className={className} />
-    const isObject = typeof lab === 'object'
+    const isObject = typeof lab === 'object' && lab !== null
     const name = isObject ? lab.name : lab
     const logoUrl = isObject ? lab.logo_url : null
 
     if (logoUrl) {
-      return <img src={logoUrl} alt={name || "Lab Logo"} className={`${className} rounded-full object-cover`} />
+      return <img src={logoUrl} alt={name || "Build Team Logo"} className={`${className} rounded-full object-cover`} />
     }
 
     if (!name) return <FlaskConical className={className} />
     const lowerName = name.toLowerCase().trim()
     if (lowerName.includes('swift')) {
-      return <img src={swiftLogo} alt="Swift Lab" className={`${className} rounded-full object-cover`} />
+      return <img src={swiftLogo} alt="Swift Build Team" className={`${className} rounded-full object-cover`} />
     }
     if (lowerName.includes('stride')) {
-      return <img src={strideLogo} alt="Stride Lab" className={`${className} rounded-full object-cover`} />
+      return <img src={strideLogo} alt="Stride Build Team" className={`${className} rounded-full object-cover`} />
     }
     return <FlaskConical className={className} />
   }

@@ -22,16 +22,16 @@ const SupervisorDashboard = () => {
     const logoUrl = isObject ? lab.logo_url : null
 
     if (logoUrl) {
-      return <img src={logoUrl} alt={name || "Lab Logo"} className={`${className} rounded-full object-cover`} />
+      return <img src={logoUrl} alt={name || "Build Team Logo"} className={`${className} rounded-full object-cover`} />
     }
 
     if (!name) return <FlaskConical className={className} />
     const lowerName = name.toLowerCase().trim()
     if (lowerName.includes('swift')) {
-      return <img src={swiftLogo} alt="Swift Lab" className={`${className} rounded-full object-cover`} />
+      return <img src={swiftLogo} alt="Swift Build Team" className={`${className} rounded-full object-cover`} />
     }
     if (lowerName.includes('stride')) {
-      return <img src={strideLogo} alt="Stride Lab" className={`${className} rounded-full object-cover`} />
+      return <img src={strideLogo} alt="Stride Build Team" className={`${className} rounded-full object-cover`} />
     }
     return <FlaskConical className={className} />
   }
@@ -163,7 +163,7 @@ const SupervisorDashboard = () => {
 
   // ── Delete Lab ──────────────────────────────────────────────────────────────
   const handleDeleteLab = async (labId, labName) => {
-    if (!window.confirm(`Are you sure you want to delete the lab "${labName}" permanently? This will delete all teams, tasks, and historical details inside this lab.`)) {
+    if (!window.confirm(`Are you sure you want to delete the build team category "${labName}" permanently? This will delete all teams, tasks, and historical details inside this category.`)) {
       return
     }
 
@@ -298,9 +298,9 @@ const SupervisorDashboard = () => {
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[10px] uppercase tracking-widest font-bold text-brand-400">Supervisor View</span>
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white">All Labs</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white">All Build Teams</h1>
             <p className="text-sm text-slate-400 mt-1">
-              Select a lab to manage its teams, tasks, and members.
+              Select a build team category to manage its teams, tasks, and members.
             </p>
           </div>
           <button
@@ -308,7 +308,7 @@ const SupervisorDashboard = () => {
             className="flex items-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-semibold text-sm px-4 py-2.5 transition shadow-[0_0_16px_rgba(99,102,241,0.3)] hover:shadow-[0_0_24px_rgba(99,102,241,0.45)]"
           >
             <Plus className="h-4 w-4" />
-            Create New Lab
+            Create New Build Team
           </button>
         </div>
 
@@ -326,7 +326,7 @@ const SupervisorDashboard = () => {
         ) : labs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center space-y-3">
             <FlaskConical className="h-12 w-12 text-slate-600" />
-            <p className="text-slate-400 text-sm">No labs yet. Create your first lab to get started.</p>
+            <p className="text-slate-400 text-sm">No build teams yet. Create your first build team to get started.</p>
           </div>
         ) : (
           <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -346,7 +346,7 @@ const SupervisorDashboard = () => {
                         <div 
                           onClick={() => triggerLogoUpload(lab.id)}
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10 overflow-hidden cursor-pointer hover:opacity-80 hover:border-brand-400 transition-all duration-200"
-                          title="Click to change lab logo"
+                          title="Click to change build team logo"
                         >
                           {renderLabLogo(lab, "h-8 w-8")}
                         </div>
@@ -362,7 +362,7 @@ const SupervisorDashboard = () => {
                       <button
                         onClick={() => handleDeleteLab(lab.id, lab.name)}
                         className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-500/10 transition shrink-0"
-                        title="Delete Lab"
+                        title="Delete Build Team"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -414,12 +414,12 @@ const SupervisorDashboard = () => {
                         Lead Admins
                       </button>
 
-                      {/* Enter Lab */}
+                      {/* Enter Build Team */}
                       <button
                         onClick={() => navigate(`/supervisor/lab/${lab.id}`)}
                         className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-brand-500/20 bg-brand-500/5 hover:bg-brand-500/15 text-brand-400 hover:text-brand-300 font-semibold text-xs py-2.5 transition-all group/btn"
                       >
-                        Enter Lab
+                        Enter Build Team
                         <ArrowRight className="h-3.5 w-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
                       </button>
                     </div>
@@ -439,7 +439,7 @@ const SupervisorDashboard = () => {
             <div className="flex items-center justify-between border-b border-dark-800 px-5 py-4">
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-brand-400" />
-                <h3 className="font-bold text-white text-sm">Create New Lab</h3>
+                <h3 className="font-bold text-white text-sm">Create New Build Team</h3>
               </div>
               <button onClick={() => setIsCreateOpen(false)} className="text-slate-400 hover:text-white transition">
                 <X className="h-4 w-4" />
@@ -447,7 +447,7 @@ const SupervisorDashboard = () => {
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">Lab Name <span className="text-rose-400">*</span></label>
+                <label className="text-xs font-semibold text-slate-400 mb-1.5 block">Build Team Name <span className="text-rose-400">*</span></label>
                 <input
                   type="text"
                   value={newLabName}
@@ -462,7 +462,7 @@ const SupervisorDashboard = () => {
                 <textarea
                   value={newLabDesc}
                   onChange={(e) => setNewLabDesc(e.target.value)}
-                  placeholder="Brief description of this lab's focus..."
+                  placeholder="Brief description of this build team's focus..."
                   rows={2}
                   className="w-full rounded-xl border border-dark-700 bg-dark-800 px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-brand-500/60 transition resize-none"
                 />
@@ -485,7 +485,7 @@ const SupervisorDashboard = () => {
                   className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-400 disabled:bg-dark-800 disabled:text-slate-600 disabled:border disabled:border-dark-700 text-white text-sm font-semibold py-2.5 transition"
                 >
                   {creating ? <Loader className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {creating ? 'Creating...' : 'Create Lab'}
+                  {creating ? 'Creating...' : 'Create Build Team'}
                 </button>
               </div>
             </div>

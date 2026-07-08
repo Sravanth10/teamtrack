@@ -190,7 +190,7 @@ export const ProfileModal = ({ isOpen, onClose }) => {
              </div>
             {profile && (profile.role === 'member' || profile.role === 'admin') && (
               <div>
-                <span className="text-slate-550 block mb-0.5">Lab Assignment</span>
+                <span className="text-slate-550 block mb-0.5">Build Team Assignment</span>
                 <span className="text-brand-400 font-bold">
                   {(() => {
                     if (profile.role === 'member') {

@@ -67,8 +67,8 @@ export const UpdatePopup = () => {
                 <ChevronRight className="h-3 w-3" />
               </span>
               <div>
-                <span className="font-bold text-slate-200">Custom Lab Logo Uploads</span>
-                <p className="text-slate-450 text-[11px] mt-0.5">Supervisors can click lab logo icons on dashboard lab cards to upload custom branding logos. Display badges update automatically across workspaces.</p>
+                <span className="font-bold text-slate-200">Custom Build Team Logo Uploads</span>
+                <p className="text-slate-450 text-[11px] mt-0.5">Supervisors can click logo icons on dashboard cards to upload custom branding logos. Display badges update automatically across workspaces.</p>
               </div>
             </div>
 

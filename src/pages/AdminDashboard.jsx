@@ -144,16 +144,16 @@ export const AdminDashboard = () => {
     const logoUrl = isObject ? lab.logo_url : null
 
     if (logoUrl) {
-      return <img src={logoUrl} alt={name || "Lab Logo"} className={`${className} rounded-full object-cover`} />
+      return <img src={logoUrl} alt={name || "Build Team Logo"} className={`${className} rounded-full object-cover`} />
     }
 
     if (!name) return <FlaskConical className={className} />
     const lowerName = name.toLowerCase().trim()
     if (lowerName.includes('swift')) {
-      return <img src={swiftLogo} alt="Swift Lab" className={`${className} rounded-full object-cover`} />
+      return <img src={swiftLogo} alt="Swift Build Team" className={`${className} rounded-full object-cover`} />
     }
     if (lowerName.includes('stride')) {
-      return <img src={strideLogo} alt="Stride Lab" className={`${className} rounded-full object-cover`} />
+      return <img src={strideLogo} alt="Stride Build Team" className={`${className} rounded-full object-cover`} />
     }
     return <FlaskConical className={className} />
   }
@@ -1077,14 +1077,14 @@ export const AdminDashboard = () => {
 
       <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-8 sm:px-6 lg:px-8 space-y-8">
         
-        {/* Back to All Labs — shown when supervisor is inside a specific lab */}
+        {/* Back to All Build Teams — shown when supervisor is inside a specific lab */}
         {isSupervisorView && (
           <button
             onClick={() => navigate('/supervisor')}
             className="flex items-center gap-2 text-xs text-slate-400 hover:text-white font-semibold transition mb-2"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Back to All Labs
+            Back to All Build Teams
           </button>
         )}
 
@@ -1101,7 +1101,7 @@ export const AdminDashboard = () => {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-brand-400 block mb-0.5">{labName}</span>
               )}
               <h1 className="font-sans text-3xl font-extrabold tracking-tight text-white">
-                {isSupervisorView ? 'Lab Dashboard' : 'Global Dashboard'}
+                {isSupervisorView ? 'Build Team Dashboard' : 'Global Dashboard'}
               </h1>
               <p className="text-sm text-slate-400 mt-1">
                 Monitor team spaces, configure tasks, and allocate team memberships.
@@ -1559,7 +1559,7 @@ export const AdminDashboard = () => {
                               </div>
                               {user.role !== 'supervisor' && (
                                 <div className="col-span-2 pt-2 border-t border-dark-800/60 flex items-center justify-between">
-                                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550">Lab Assignment</span>
+                                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550">Build Team Assignment</span>
                                   <span className="font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded text-[10px]">
                                     {user.labName || 'None'}
                                   </span>
