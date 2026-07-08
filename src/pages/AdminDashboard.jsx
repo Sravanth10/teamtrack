@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
@@ -34,6 +34,8 @@ import {
   ShieldCheck
 } from 'lucide-react'
 import { calculateDynamicExperience } from '../lib/utils'
+import swiftLogo from '../assets/swift_logo.png'
+import strideLogo from '../assets/stride_logo.png'
 
 const PREDEFINED_SKILLS = [
   'Artificial Intelligence (AI)',
@@ -134,7 +136,31 @@ export const AdminDashboard = () => {
   const { labId } = useParams()          // present when supervisor enters /supervisor/lab/:labId
   const { profile, isSupervisor } = useAuth()
   const isSupervisorView = !!labId       // true = supervisor entered a specific lab
+
+  const renderLabLogo = (lab, className = "h-4 w-4") => {
+    if (!lab) return <FlaskConical className={className} />
+    const isObject = typeof lab === 'object'
+    const name = isObject ? lab.name : lab
+    const logoUrl = isObject ? lab.logo_url : null
+
+    if (logoUrl) {
+      return <img src={logoUrl} alt={name || "Lab Logo"} className={`${className} rounded-full object-cover`} />
+    }
+
+    if (!name) return <FlaskConical className={className} />
+    const lowerName = name.toLowerCase().trim()
+    if (lowerName.includes('swift')) {
+      return <img src={swiftLogo} alt="Swift Lab" className={`${className} rounded-full object-cover`} />
+    }
+    if (lowerName.includes('stride')) {
+      return <img src={strideLogo} alt="Stride Lab" className={`${className} rounded-full object-cover`} />
+    }
+    return <FlaskConical className={className} />
+  }
+
   const [labName, setLabName] = useState(null)  // name of current lab (for header)
+  const [labLogoUrl, setLabLogoUrl] = useState(null)
+
   const [teams, setTeams] = useState([])
   const [pendingUsers, setPendingUsers] = useState([])
   const [activeTab, setActiveTab] = useState('teams') // 'teams' or 'registrations'
@@ -543,10 +569,13 @@ export const AdminDashboard = () => {
     if (isSupervisorView && labId) {
       const { data: labData } = await supabase
         .from('labs')
-        .select('name')
+        .select('name, logo_url')
         .eq('id', labId)
         .single()
-      if (labData) setLabName(labData.name)
+      if (labData) {
+        setLabName(labData.name)
+        setLabLogoUrl(labData.logo_url)
+      }
       setCurrentLabId(labId)
     } else if (!isSupervisor) {
       // Fetch assigned lab for admin
@@ -1061,19 +1090,23 @@ export const AdminDashboard = () => {
 
         {/* Header Block */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-dark-800 pb-6">
-          <div>
+          <div className="flex items-center gap-3">
             {isSupervisorView && labName && (
-              <div className="flex items-center gap-1.5 mb-1">
-                <FlaskConical className="h-3.5 w-3.5 text-brand-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-400">{labName}</span>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10 overflow-hidden">
+                {renderLabLogo({ id: labId, name: labName, logo_url: labLogoUrl }, "h-8 w-8")}
               </div>
             )}
-            <h1 className="font-sans text-3xl font-extrabold tracking-tight text-white">
-              {isSupervisorView ? 'Lab Dashboard' : 'Global Dashboard'}
-            </h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Monitor team spaces, configure tasks, and allocate team memberships.
-            </p>
+            <div>
+              {isSupervisorView && labName && (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-brand-400 block mb-0.5">{labName}</span>
+              )}
+              <h1 className="font-sans text-3xl font-extrabold tracking-tight text-white">
+                {isSupervisorView ? 'Lab Dashboard' : 'Global Dashboard'}
+              </h1>
+              <p className="text-sm text-slate-400 mt-1">
+                Monitor team spaces, configure tasks, and allocate team memberships.
+              </p>
+            </div>
           </div>
           
           <div className="flex flex-col sm:flex-row gap-3">

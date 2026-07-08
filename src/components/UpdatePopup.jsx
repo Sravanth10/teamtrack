@@ -5,8 +5,8 @@ export const UpdatePopup = () => {
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
-    // Release Date: July 7, 2026, 09:08:59 UTC (14:38:59 IST)
-    const RELEASE_TIME = new Date('2026-07-07T09:08:59Z').getTime()
+    // Release Date: July 8, 2026, 07:22:11 UTC (12:52:11 IST)
+    const RELEASE_TIME = new Date('2026-07-08T07:22:11Z').getTime()
     const EXPIRATION_TIME = RELEASE_TIME + (24 * 60 * 60 * 1000) // 24 Hours
     const currentTime = Date.now()
 
@@ -67,6 +67,26 @@ export const UpdatePopup = () => {
                 <ChevronRight className="h-3 w-3" />
               </span>
               <div>
+                <span className="font-bold text-slate-200">Custom Lab Logo Uploads</span>
+                <p className="text-slate-450 text-[11px] mt-0.5">Supervisors can click lab logo icons on dashboard lab cards to upload custom branding logos. Display badges update automatically across workspaces.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <span className="mt-1 rounded bg-brand-500/20 text-brand-400 p-0.5 shrink-0">
+                <ChevronRight className="h-3 w-3" />
+              </span>
+              <div>
+                <span className="font-bold text-slate-200">Supervisor & Admin Field Panels</span>
+                <p className="text-slate-450 text-[11px] mt-0.5">Added Received Date, Customer, BG/Market, Stage fields to teams. Added a Project Details modal for advanced tracking.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <span className="mt-1 rounded bg-brand-500/20 text-brand-400 p-0.5 shrink-0">
+                <ChevronRight className="h-3 w-3" />
+              </span>
+              <div>
                 <span className="font-bold text-slate-200">Dynamic User Skill Levels</span>
                 <p className="text-slate-450 text-[11px] mt-0.5">Users are assigned a default level (Foundation). Supervisors can adjust skill levels (Foundation, Intermediate, Advanced) from user profiles.</p>
               </div>
@@ -88,7 +108,7 @@ export const UpdatePopup = () => {
               </span>
               <div>
                 <span className="font-bold text-slate-200">Space Activation / Deactivation</span>
-                <p className="text-slate-450 text-[11px] mt-0.5">Toggle active status in team settings. Deactivated teams are set to read-only (blocking task, leave, or sticky edits) and grouped under a new collapsed section.</p>
+                <p className="text-slate-450 text-[11px] mt-0.5">Toggle active status in settings. Deactivated teams are set to read-only (blocking task, leave, or sticky edits) and grouped under a new collapsed section.</p>
               </div>
             </div>
 

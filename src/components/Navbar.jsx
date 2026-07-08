@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { LogOut, User, Compass, Sun, Moon, QrCode, ShieldCheck, X, Loader, Users, ChevronDown, FlaskConical } from 'lucide-react'
+import swiftLogo from '../assets/swift_logo.png'
+import strideLogo from '../assets/stride_logo.png'
 import { supabase } from '../lib/supabaseClient'
 import * as OTPAuth from 'otpauth'
 import { ProfileModal } from './ProfileModal'
@@ -8,13 +10,36 @@ import { ProfileModal } from './ProfileModal'
 export const Navbar = () => {
   const { profile, logout, refreshProfile, isSupervisor } = useAuth()
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
+
+  const renderLabLogo = (lab, className = "h-4 w-4") => {
+    if (!lab) return <FlaskConical className={className} />
+    const isObject = typeof lab === 'object' && lab !== null
+    const name = isObject ? lab.name : lab
+    const logoUrl = isObject ? lab.logo_url : null
+
+    if (logoUrl) {
+      return <img src={logoUrl} alt={name || "Lab Logo"} className={`${className} rounded-full object-cover`} />
+    }
+
+    if (!name) return <FlaskConical className={className} />
+    const lowerName = name.toLowerCase().trim()
+    if (lowerName.includes('swift')) {
+      return <img src={swiftLogo} alt="Swift Lab" className={`${className} rounded-full object-cover`} />
+    }
+    if (lowerName.includes('stride')) {
+      return <img src={strideLogo} alt="Stride Lab" className={`${className} rounded-full object-cover`} />
+    }
+    return <FlaskConical className={className} />
+  }
   
   // Allocated teams switcher states
   const [userTeams, setUserTeams] = useState([])
   const [loadingTeams, setLoadingTeams] = useState(false)
   const [isTeamsDropdownOpen, setIsTeamsDropdownOpen] = useState(false)
   const [memberLabName, setMemberLabName] = useState(null)  // lab name for members
+  const [memberLab, setMemberLab] = useState(null)
   const [adminLabNames, setAdminLabNames] = useState(null)  // lab names for lead admins
+  const [adminLab, setAdminLab] = useState(null)
   
   // User profile modal state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
@@ -32,7 +57,7 @@ export const Navbar = () => {
               name,
               category,
               lab_id,
-              labs ( name )
+              labs ( name, logo_url )
             )
           `)
           .eq('user_id', profile.id)
@@ -42,7 +67,10 @@ export const Navbar = () => {
               setUserTeams(teams)
               // Pick the lab name from the first team that has one
               const labEntry = teams.find(t => t.labs?.name)
-              if (labEntry) setMemberLabName(labEntry.labs.name)
+              if (labEntry) {
+                setMemberLabName(labEntry.labs.name)
+                setMemberLab(labEntry.labs)
+              }
             }
             setLoadingTeams(false)
           })
@@ -51,16 +79,18 @@ export const Navbar = () => {
           .from('lab_admins')
           .select(`
             lab_id,
-            labs ( name )
+            labs ( name, logo_url )
           `)
           .eq('user_id', profile.id)
           .then(({ data, error }) => {
             if (!error && data) {
-              const names = data.map(la => la.labs?.name).filter(Boolean)
-              if (names.length > 0) {
-                setAdminLabNames(names.join(', '))
+              const labsList = data.map(la => la.labs).filter(Boolean)
+              if (labsList.length > 0) {
+                setAdminLabNames(labsList.map(l => l.name).join(', '))
+                setAdminLab(labsList[0])
               } else {
                 setAdminLabNames(null)
+                setAdminLab(null)
               }
             }
           })
@@ -191,7 +221,7 @@ export const Navbar = () => {
                   {/* Lab badge for members */}
                   {memberLabName && (
                     <span className="hidden sm:flex items-center gap-1 rounded-md bg-brand-500/10 border border-brand-500/20 px-2 py-1 text-[10px] font-bold text-brand-400">
-                      <FlaskConical className="h-3 w-3" />
+                      {renderLabLogo(memberLab, "h-4 w-4")}
                       {memberLabName}
                     </span>
                   )}
@@ -228,7 +258,7 @@ export const Navbar = () => {
               {/* Lab badge for Lead Admins */}
               {profile && profile.role === 'admin' && adminLabNames && (
                 <span className="hidden sm:flex items-center gap-1 rounded-md bg-brand-500/10 border border-brand-500/20 px-2 py-1 text-[10px] font-bold text-brand-400">
-                  <FlaskConical className="h-3 w-3" />
+                  {renderLabLogo(adminLab, "h-4 w-4")}
                   {adminLabNames}
                 </span>
               )}

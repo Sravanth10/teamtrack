@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
@@ -24,11 +24,34 @@ import {
   Pin,
   Edit
 } from 'lucide-react'
+import swiftLogo from '../assets/swift_logo.png'
+import strideLogo from '../assets/stride_logo.png'
 
 export const TeamSpace = () => {
   const { teamId } = useParams()
   const navigate = useNavigate()
   const { profile, loading: authLoading } = useAuth()
+
+  const renderLabLogo = (lab, className = "h-4 w-4") => {
+    if (!lab) return <FlaskConical className={className} />
+    const isObject = typeof lab === 'object'
+    const name = isObject ? lab.name : lab
+    const logoUrl = isObject ? lab.logo_url : null
+
+    if (logoUrl) {
+      return <img src={logoUrl} alt={name || "Lab Logo"} className={`${className} rounded-full object-cover`} />
+    }
+
+    if (!name) return <FlaskConical className={className} />
+    const lowerName = name.toLowerCase().trim()
+    if (lowerName.includes('swift')) {
+      return <img src={swiftLogo} alt="Swift Lab" className={`${className} rounded-full object-cover`} />
+    }
+    if (lowerName.includes('stride')) {
+      return <img src={strideLogo} alt="Stride Lab" className={`${className} rounded-full object-cover`} />
+    }
+    return <FlaskConical className={className} />
+  }
 
   const [team, setTeam] = useState(null)
   const [tasks, setTasks] = useState([])
@@ -117,7 +140,7 @@ export const TeamSpace = () => {
       // 2. Fetch Team Info
       const { data: teamData, error: teamErr } = await supabase
         .from('teams')
-        .select('*, labs ( name )')
+        .select('*, labs ( id, name, logo_url )')
         .eq('id', teamId)
         .single()
 
@@ -610,7 +633,7 @@ export const TeamSpace = () => {
         
         {/* Navigation & Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-dark-800 pb-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             {(profile.role === 'admin' || profile.role === 'supervisor') && (
               <button
                 onClick={() => navigate(profile.role === 'supervisor' ? -1 : '/admin')}
@@ -620,15 +643,15 @@ export const TeamSpace = () => {
                 <ArrowLeft className="h-5 w-5" />
               </button>
             )}
-            <div>
-              <div className="flex items-center gap-2">
-                <Bookmark className="h-5 w-5 text-brand-400" />
-                <h1 className="font-sans text-2xl font-extrabold text-white leading-tight">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Bookmark className="h-5 w-5 text-brand-400 shrink-0" />
+                <h1 className="font-sans text-2xl font-extrabold text-white leading-tight break-words">
                   {team?.name}
                 </h1>
                 {team?.labs?.name && (
-                  <span className="inline-flex items-center gap-1 rounded bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 text-[10px] font-bold text-brand-400">
-                    <FlaskConical className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-1 rounded bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 text-[10px] font-bold text-brand-400 shrink-0">
+                    {renderLabLogo(team.labs, "h-4 w-4")}
                     {team.labs.name}
                   </span>
                 )}

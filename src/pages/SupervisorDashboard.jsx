@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
@@ -8,14 +8,73 @@ import {
   CheckCircle2, Loader, X, AlertCircle, Building2, ShieldCheck,
   UserPlus, Trash2, Search, UserMinus
 } from 'lucide-react'
+import swiftLogo from '../assets/swift_logo.png'
+import strideLogo from '../assets/stride_logo.png'
 
 const SupervisorDashboard = () => {
   const { profile } = useAuth()
   const navigate = useNavigate()
 
+  const renderLabLogo = (lab, className = "h-5 w-5") => {
+    if (!lab) return <FlaskConical className={className} />
+    const isObject = typeof lab === 'object'
+    const name = isObject ? lab.name : lab
+    const logoUrl = isObject ? lab.logo_url : null
+
+    if (logoUrl) {
+      return <img src={logoUrl} alt={name || "Lab Logo"} className={`${className} rounded-full object-cover`} />
+    }
+
+    if (!name) return <FlaskConical className={className} />
+    const lowerName = name.toLowerCase().trim()
+    if (lowerName.includes('swift')) {
+      return <img src={swiftLogo} alt="Swift Lab" className={`${className} rounded-full object-cover`} />
+    }
+    if (lowerName.includes('stride')) {
+      return <img src={strideLogo} alt="Stride Lab" className={`${className} rounded-full object-cover`} />
+    }
+    return <FlaskConical className={className} />
+  }
+
   const [labs, setLabs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const fileInputRef = useRef(null)
+  const uploadingLabIdRef = useRef(null)
+
+  const triggerLogoUpload = (labId) => {
+    uploadingLabIdRef.current = labId
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+    }
+  }
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0]
+    const labId = uploadingLabIdRef.current
+    if (!file || !labId) return
+
+    const reader = new FileReader()
+    reader.onloadend = async () => {
+      const base64String = reader.result
+      try {
+        const { error: uploadErr } = await supabase
+          .from('labs')
+          .update({ logo_url: base64String })
+          .eq('id', labId)
+
+        if (uploadErr) throw uploadErr
+
+        fetchLabs()
+      } catch (err) {
+        alert('Failed to update lab logo: ' + err.message)
+      } finally {
+        uploadingLabIdRef.current = null
+        e.target.value = ''
+      }
+    }
+    reader.readAsDataURL(file)
+  }
 
   // Create lab modal
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -39,7 +98,7 @@ const SupervisorDashboard = () => {
       const { data, error: labErr } = await supabase
         .from('labs')
         .select(`
-          id, name, description, created_at,
+          id, name, description, logo_url, created_at,
           teams (
             id,
             team_members ( id, user_id )
@@ -284,8 +343,12 @@ const SupervisorDashboard = () => {
                     {/* Lab name */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10">
-                          <FlaskConical className="h-5 w-5 text-brand-400" />
+                        <div 
+                          onClick={() => triggerLogoUpload(lab.id)}
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-500/20 bg-brand-500/10 overflow-hidden cursor-pointer hover:opacity-80 hover:border-brand-400 transition-all duration-200"
+                          title="Click to change lab logo"
+                        >
+                          {renderLabLogo(lab, "h-8 w-8")}
                         </div>
                         <div>
                           <h2 className="text-base font-extrabold text-white tracking-tight group-hover:text-brand-300 transition-colors">
@@ -559,6 +622,15 @@ const SupervisorDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Hidden File Input for Logo Upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleLogoUpload}
+      />
     </div>
   )
 }
