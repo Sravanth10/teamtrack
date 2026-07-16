@@ -84,6 +84,8 @@ const PREDEFINED_SKILLS = [
   'PostgreSQL'
 ]
 
+const INDIVIDUAL_CATEGORIES = ['Billable', 'Core', 'Future Ready', 'GTM', 'Training']
+
 const REGIONS = [
   { code: '+91', country: 'India', digits: 10, placeholder: '9876543210' },
   { code: '+1', country: 'US/Canada', digits: 10, placeholder: '2015550123' },
@@ -210,6 +212,7 @@ export const AdminDashboard = () => {
   const [isSkillsDropdownOpen, setIsSkillsDropdownOpen] = useState(false)
   const [editSkillLevel, setEditSkillLevel] = useState('foundation')
   const [editNotificationsAccess, setEditNotificationsAccess] = useState(false)
+  const [editIndividualCategory, setEditIndividualCategory] = useState('Training')
 
   // Milestones Tab States
   const [milestones, setMilestones] = useState([])
@@ -758,9 +761,21 @@ export const AdminDashboard = () => {
 
         if (tasksErr) throw tasksErr
 
+        const employeeIds = usersData.map(u => u.employee_id).filter(Boolean)
+        let categoryMap = {}
+        if (employeeIds.length > 0) {
+          const { data: skillsData } = await supabase
+            .from('employee_skills_data')
+            .select('employee_id, individual_category')
+            .in('employee_id', employeeIds)
+          if (skillsData) {
+            skillsData.forEach(s => { categoryMap[s.employee_id] = s.individual_category })
+          }
+        }
+
         const combined = usersData.map(user => {
           const userTasks = tasksData ? tasksData.filter(t => t.created_by === user.id) : []
-          
+
           let labName = 'None'
           if (user.role === 'member') {
             const memberLabs = user.team_members?.map(tm => tm.teams?.labs?.name).filter(Boolean) || []
@@ -777,7 +792,8 @@ export const AdminDashboard = () => {
               ? user.team_members.map(tm => tm.teams?.name).filter(Boolean).join(', ')
               : 'No Assigned Team',
             labName,
-            tasks: userTasks
+            tasks: userTasks,
+            individualCategory: (user.employee_id && categoryMap[user.employee_id]) || 'Training'
           }
         })
 
@@ -841,9 +857,21 @@ export const AdminDashboard = () => {
 
           if (tasksErr) throw tasksErr
 
+          const employeeIds = usersData.map(u => u.employee_id).filter(Boolean)
+          let categoryMap = {}
+          if (employeeIds.length > 0) {
+            const { data: skillsData } = await supabase
+              .from('employee_skills_data')
+              .select('employee_id, individual_category')
+              .in('employee_id', employeeIds)
+            if (skillsData) {
+              skillsData.forEach(s => { categoryMap[s.employee_id] = s.individual_category })
+            }
+          }
+
           const combined = usersData.map(user => {
             const userTasks = tasksData ? tasksData.filter(t => t.created_by === user.id) : []
-            
+
             let labName = 'None'
             if (user.role === 'member') {
               const memberLabs = user.team_members?.map(tm => tm.teams?.labs?.name).filter(Boolean) || []
@@ -860,7 +888,8 @@ export const AdminDashboard = () => {
                 ? user.team_members.map(tm => tm.teams?.name).filter(Boolean).join(', ')
                 : 'No Assigned Team',
               labName,
-              tasks: userTasks
+              tasks: userTasks,
+              individualCategory: (user.employee_id && categoryMap[user.employee_id]) || 'Training'
             }
           })
 
@@ -878,7 +907,7 @@ export const AdminDashboard = () => {
     return () => clearTimeout(delayDebounce)
   }, [searchQuery, activeTab])
 
-  const handleOpenEditModal = (user) => {
+  const handleOpenEditModal = async (user) => {
     setEditingUser(user)
     setEditName(user.name || '')
     setEditRole(user.role || 'member')
@@ -894,6 +923,19 @@ export const AdminDashboard = () => {
     setSkillsInput('')
     setIsSkillsDropdownOpen(false)
     setIsEditModalOpen(true)
+
+    // Individual Category lives in employee_skills_data, soft-linked via employee_id
+    setEditIndividualCategory(user.individualCategory || 'Training')
+    if (user.employee_id) {
+      const { data } = await supabase
+        .from('employee_skills_data')
+        .select('individual_category')
+        .eq('employee_id', user.employee_id)
+        .maybeSingle()
+      if (data?.individual_category) {
+        setEditIndividualCategory(data.individual_category)
+      }
+    }
   }
 
   const handleAddSkill = (skill) => {
@@ -949,6 +991,18 @@ export const AdminDashboard = () => {
         .eq('id', editingUser.id)
 
       if (updateErr) throw updateErr
+
+      // Individual Category lives in employee_skills_data, soft-linked via employee_id
+      const savedEmployeeId = editEmployeeId.trim()
+      if (savedEmployeeId) {
+        const { error: catErr } = await supabase
+          .from('employee_skills_data')
+          .upsert(
+            { employee_id: savedEmployeeId, individual_category: editIndividualCategory, status: 'registered' },
+            { onConflict: 'employee_id' }
+          )
+        if (catErr) throw catErr
+      }
 
       // Close modal and reload
       setIsEditModalOpen(false)
@@ -1703,6 +1757,10 @@ export const AdminDashboard = () => {
                                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Skill Level</span>
                                  <span className="font-semibold text-slate-205 block capitalize">{user.skill_level || 'foundation'}</span>
                                </div>
+                               <div>
+                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Individual Category</span>
+                                 <span className="font-semibold text-slate-205 block">{user.individualCategory || 'Training'}</span>
+                               </div>
                               <div className="col-span-2 pt-2 border-t border-dark-800/60 flex items-center justify-between">
                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550">Team Workspace</span>
                                 <span className="font-bold text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded text-[10px]">
@@ -2253,6 +2311,24 @@ export const AdminDashboard = () => {
                   )}
                 </select>
               </div>
+
+              {/* Individual Category (Admin & Supervisor only — this modal itself is unreachable by members) */}
+              {(profile?.role === 'admin' || profile?.role === 'supervisor') && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Individual Category
+                  </label>
+                  <select
+                    value={editIndividualCategory}
+                    onChange={(e) => setEditIndividualCategory(e.target.value)}
+                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
+                  >
+                    {INDIVIDUAL_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
