@@ -77,7 +77,7 @@ export const TeamSpace = () => {
   const [isSubmittingTask, setIsSubmittingTask] = useState(false)
 
   // Leave/Absence Form States
-  const [leaveType, setLeaveType] = useState('leave') // 'leave', 'no show', 'holiday'
+  const [leaveType, setLeaveType] = useState('leave') // 'leave', 'wfo exception', 'holiday'
   const [leaveId, setLeaveId] = useState('') // required only if type === 'leave'
   const [leaveStartDate, setLeaveStartDate] = useState(new Date().toISOString().split('T')[0])
   const [leaveEndDate, setLeaveEndDate] = useState(new Date().toISOString().split('T')[0])
@@ -1250,7 +1250,7 @@ export const TeamSpace = () => {
                   className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
                 >
                   <option value="leave">Leave</option>
-                  <option value="no show">No Show</option>
+                  <option value="wfo exception">WFO Exception</option>
                   <option value="holiday">Holiday</option>
                 </select>
               </div>

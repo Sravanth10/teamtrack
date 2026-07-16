@@ -103,6 +103,18 @@ const parsePhone = (fullPhone) => {
   return { region: '+91', number: fullPhone }
 }
 
+const parseLeaveInfo = (description) => {
+  if (!description) return { type: 'Leave', leaveId: null, reason: '' }
+  const typeMatch = description.match(/\[Type:\s*([^\]]+)\]/i)
+  const leaveIdMatch = description.match(/\[Leave ID:\s*([^\]]+)\]/i)
+  const reasonMatch = description.match(/Reason:\s*(.*)$/i)
+  return {
+    type: typeMatch ? typeMatch[1].trim() : 'Leave',
+    leaveId: leaveIdMatch ? leaveIdMatch[1].trim() : null,
+    reason: reasonMatch ? reasonMatch[1].trim() : description
+  }
+}
+
 const calculateExperience = (joiningDateStr) => {
   if (!joiningDateStr) return '0 months'
   const joinDate = new Date(joiningDateStr)
@@ -197,10 +209,25 @@ export const AdminDashboard = () => {
   const [skillsInput, setSkillsInput] = useState('')
   const [isSkillsDropdownOpen, setIsSkillsDropdownOpen] = useState(false)
   const [editSkillLevel, setEditSkillLevel] = useState('foundation')
+  const [editNotificationsAccess, setEditNotificationsAccess] = useState(false)
 
   // Milestones Tab States
   const [milestones, setMilestones] = useState([])
   const [milestonesLoading, setMilestonesLoading] = useState(false)
+
+  // Leaves Tab States (Lead Admin only, not shown for supervisors)
+  const [leaves, setLeaves] = useState([])
+  const [leavesLoading, setLeavesLoading] = useState(false)
+  // How many raw leave rows have been viewed, for the unread badge. Persisted to localStorage
+  // (keyed per admin) so the badge stays de-highlighted across page reloads until a new leave is logged.
+  const [leavesSeenCount, setLeavesSeenCount] = useState(() => {
+    try {
+      const stored = profile?.id ? localStorage.getItem(`teamtrack_leaves_seen_${profile.id}`) : null
+      return stored ? parseInt(stored, 10) : 0
+    } catch {
+      return 0
+    }
+  })
 
   // Team Overview States
   const [engagedCandidates, setEngagedCandidates] = useState([])
@@ -547,6 +574,84 @@ export const AdminDashboard = () => {
     }
   }
 
+  const fetchLeaves = async () => {
+    // Leaves tab is exclusive to Lead Admins — supervisors don't need this view
+    if (isSupervisor) {
+      setLeaves([])
+      return
+    }
+
+    setLeavesLoading(true)
+    try {
+      let query = supabase
+        .from('tasks')
+        .select(`
+          id,
+          description,
+          created_at,
+          created_by,
+          users (
+            id,
+            name,
+            email
+          ),
+          teams!inner (
+            id,
+            name,
+            lab_id
+          )
+        `)
+        .eq('title', 'Leave')
+        .order('created_at', { ascending: false })
+
+      const { data: assignments } = await supabase
+        .from('lab_admins')
+        .select('lab_id')
+        .eq('user_id', profile?.id)
+      if (assignments && assignments.length > 0) {
+        const assignedLabIds = assignments.map(a => a.lab_id)
+        query = query.in('teams.lab_id', assignedLabIds)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      setLeaves(data || [])
+    } catch (err) {
+      console.error('Error fetching leaves:', err.message)
+    } finally {
+      setLeavesLoading(false)
+    }
+  }
+
+  // Group individual per-date leave rows into a single ranged entry per member/team/description
+  const getGroupedLeaves = () => {
+    const groups = {}
+    leaves.forEach(task => {
+      const key = `${task.created_by}_${task.teams?.id}_${task.description}`
+      if (!groups[key]) {
+        groups[key] = {
+          user: task.users,
+          team: task.teams,
+          description: task.description,
+          dates: []
+        }
+      }
+      groups[key].dates.push(new Date(task.created_at))
+    })
+
+    return Object.values(groups).map((g, idx) => {
+      g.dates.sort((a, b) => a - b)
+      return {
+        key: idx,
+        user: g.user,
+        team: g.team,
+        description: g.description,
+        fromDate: g.dates[0],
+        toDate: g.dates[g.dates.length - 1]
+      }
+    }).sort((a, b) => b.fromDate - a.fromDate)
+  }
+
   const handleDeleteMilestone = async (milestoneId) => {
     if (!window.confirm('Are you sure you want to remove this milestone?')) return
     try {
@@ -587,13 +692,28 @@ export const AdminDashboard = () => {
         setCurrentLabId(assignments[0].lab_id)
       }
     }
-    await Promise.all([fetchTeams(), fetchPendingUsers(), fetchMilestones()])
+    await Promise.all([fetchTeams(), fetchPendingUsers(), fetchMilestones(), fetchLeaves()])
     setLoading(false)
   }
 
   useEffect(() => {
     loadData()
   }, [labId])
+
+  // Mark leaves as "seen" while the Leaves tab is actively open, so the unread badge de-highlights
+  // on view and stays that way across reloads until a new leave row is logged.
+  useEffect(() => {
+    if (activeTab === 'leaves') {
+      setLeavesSeenCount(leaves.length)
+      try {
+        if (profile?.id) {
+          localStorage.setItem(`teamtrack_leaves_seen_${profile.id}`, String(leaves.length))
+        }
+      } catch {
+        // localStorage unavailable — badge will simply re-highlight each reload, no functional impact
+      }
+    }
+  }, [activeTab, leaves, profile?.id])
 
   // Manual non-debounced profile search query trigger for instant reloading after editing
   const triggerSearchQuery = async () => {
@@ -770,6 +890,7 @@ export const AdminDashboard = () => {
     setEditRapidJoiningDate(user.rapid_joining_date || '')
     setEditSkills(user.skills || [])
     setEditSkillLevel(user.skill_level || 'foundation')
+    setEditNotificationsAccess(user.notifications_access === true)
     setSkillsInput('')
     setIsSkillsDropdownOpen(false)
     setIsEditModalOpen(true)
@@ -815,6 +936,11 @@ export const AdminDashboard = () => {
       // Only supervisors can modify the skill level of admins and members
       if (profile?.role === 'supervisor') {
         updatePayload.skill_level = editSkillLevel
+      }
+
+      // Only supervisors can grant/revoke the notifications feature, and only for Lead Admins
+      if (profile?.role === 'supervisor' && editRole === 'admin') {
+        updatePayload.notifications_access = editNotificationsAccess
       }
 
       const { error: updateErr } = await supabase
@@ -911,6 +1037,8 @@ export const AdminDashboard = () => {
       alert(`Rejection failed: ${err.message}`)
     }
   }
+
+  const groupedLeavesList = getGroupedLeaves()
 
   const generalTeams = teams.filter(t => t.is_active !== false && (t.category || '').toLowerCase().trim() === 'general')
   const specificTeams = teams.filter(t => t.is_active !== false && (t.category || '').toLowerCase().trim() !== 'general')
@@ -1203,6 +1331,30 @@ export const AdminDashboard = () => {
           >
             <span>Team Overview</span>
           </button>
+          {!isSupervisor && (
+            <button
+              onClick={() => {
+                setActiveTab('leaves')
+                fetchLeaves()
+              }}
+              className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+                activeTab === 'leaves'
+                  ? 'border-brand-500 text-white'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Leaves</span>
+              {groupedLeavesList.length > 0 && (
+                <span className={`font-sans font-extrabold text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                  activeTab === 'leaves' || leaves.length <= leavesSeenCount
+                    ? 'bg-dark-800 text-slate-400 border-dark-700'
+                    : 'bg-amber-500 text-dark-950 border-amber-600 animate-pulse'
+                }`}>
+                  {groupedLeavesList.length}
+                </span>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Loading Spinner */}
@@ -1946,6 +2098,92 @@ export const AdminDashboard = () => {
                 )}
               </div>
             )}
+
+            {/* Active Tab: Leaves (Lead Admin only) */}
+            {activeTab === 'leaves' && !isSupervisor && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b border-dark-800 pb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Calendar className="h-5 w-5 text-brand-400" />
+                      Reported Leaves
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Leave, WFO exception, and holiday reports from members across your Build Team's workspaces.
+                    </p>
+                  </div>
+                  <div className="text-xs text-slate-450 bg-dark-900 border border-dark-800 px-3 py-1.5 rounded-xl font-bold shrink-0">
+                    Total: {groupedLeavesList.length}
+                  </div>
+                </div>
+
+                {leavesLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader className="h-8 w-8 text-brand-500 animate-spin" />
+                  </div>
+                ) : groupedLeavesList.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8 bg-dark-900/30">
+                    <Calendar className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-base font-bold text-white mb-1">No Leaves Reported</h3>
+                    <p className="text-sm text-slate-550">
+                      When members report a leave, WFO exception, or holiday, it will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+                    {groupedLeavesList.map((leave) => {
+                      const { type, leaveId, reason } = parseLeaveInfo(leave.description)
+                      const formattedFrom = leave.fromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      const formattedTo = leave.toDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      const dateDisplay = formattedFrom === formattedTo ? formattedFrom : `${formattedFrom} - ${formattedTo}`
+                      const typeStyles = {
+                        'LEAVE': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+                        'WFO EXCEPTION': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                        'HOLIDAY': 'bg-brand-500/10 text-brand-400 border-brand-500/20'
+                      }
+                      const typeStyle = typeStyles[type.toUpperCase()] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+
+                      return (
+                        <div
+                          key={leave.key}
+                          className="rounded-2xl border border-dark-800 bg-dark-900 p-5 flex flex-col gap-3 hover:border-brand-500/10 transition-colors shadow-glass"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <h4 className="font-sans font-bold text-white text-sm truncate">
+                                {leave.user?.name || leave.user?.email || 'Unknown Member'}
+                              </h4>
+                              <span className="text-[10px] text-slate-505 font-mono select-all">{leave.user?.email}</span>
+                            </div>
+                            <span className={`px-2 py-0.5 text-[9px] uppercase font-bold tracking-wide rounded border shrink-0 ${typeStyle}`}>
+                              {type}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-400">
+                            <span className="flex items-center gap-1.5">
+                              <Briefcase className="h-3.5 w-3.5 text-brand-400" />
+                              {leave.team?.name || 'N/A'}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5 text-brand-400" />
+                              {dateDisplay}
+                            </span>
+                            {leaveId && (
+                              <span className="text-slate-500 font-mono text-[11px]">ID: {leaveId}</span>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-slate-400 leading-relaxed bg-dark-950/40 border border-dark-850/40 p-2.5 rounded-lg">
+                            {reason || 'No reason provided.'}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </main>
@@ -2115,6 +2353,34 @@ export const AdminDashboard = () => {
                   <div className="w-full rounded-lg border border-dark-800 bg-dark-950/50 px-4 py-2.5 text-slate-400 text-sm capitalize select-none">
                     {editRole === 'supervisor' ? 'management' : editSkillLevel}
                   </div>
+                </div>
+              )}
+
+              {/* Notifications Feature Access (Supervisors granting access to Lead Admins only) */}
+              {profile?.role === 'supervisor' && editRole === 'admin' && (
+                <div className="flex items-center justify-between rounded-lg border border-dark-700 bg-dark-950 px-4 py-3">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Notifications Access
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Lets this admin see missed-progress alerts for members in their Build Team.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditNotificationsAccess(!editNotificationsAccess)}
+                    className={`relative shrink-0 h-6 w-11 rounded-full transition-colors ${
+                      editNotificationsAccess ? 'bg-brand-500' : 'bg-dark-700'
+                    }`}
+                    title={editNotificationsAccess ? 'Disable notifications access' : 'Enable notifications access'}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        editNotificationsAccess ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
                 </div>
               )}
 

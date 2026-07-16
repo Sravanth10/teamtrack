@@ -6,6 +6,7 @@ import strideLogo from '../assets/stride_logo.png'
 import { supabase } from '../lib/supabaseClient'
 import * as OTPAuth from 'otpauth'
 import { ProfileModal } from './ProfileModal'
+import { NotificationsBell } from './NotificationsBell'
 
 export const Navbar = () => {
   const { profile, logout, refreshProfile, isSupervisor } = useAuth()
@@ -304,6 +305,9 @@ export const Navbar = () => {
                     Enable MFA
                   </button>
                 )}
+
+                {/* Notifications Bell */}
+                <NotificationsBell />
 
                 {/* Profile Button */}
                 <button
