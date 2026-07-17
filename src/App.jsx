@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { useAuth } from './hooks/useAuth'
 import { supabase } from './lib/supabaseClient'
@@ -14,7 +14,7 @@ import Navbar from './components/Navbar'
 import UpdatePopup from './components/UpdatePopup'
 import InstructionsPopup from './components/InstructionsPopup'
 import { Loader, AlertCircle, ShieldAlert, CheckCircle, Clock, Compass, Users, Sun, Moon } from 'lucide-react'
-import { calculateDynamicExperience } from './lib/utils'
+import { calculateDynamicExperience, getTeamCategoryLabel } from './lib/utils'
 
 // 1. Root redirector that inspects user session, role, approval status, and TOTP status and sends them to the appropriate dashboard
 const RootRedirector = () => {
@@ -67,6 +67,11 @@ const RootRedirector = () => {
             } else {
               setRedirectPath('/select-team')
             }
+            setCheckingMembership(false)
+          })
+          .catch((err) => {
+            console.error('Error checking team membership:', err.message)
+            setRedirectPath('/no-team')
             setCheckingMembership(false)
           })
       }
@@ -259,6 +264,10 @@ const SelectTeamView = () => {
           }
           setLoading(false)
         })
+        .catch((err) => {
+          console.error('Error loading team spaces:', err.message)
+          setLoading(false)
+        })
     }
   }, [user])
 
@@ -310,9 +319,9 @@ const SelectTeamView = () => {
           {userTeams.map((team) => {
             const isInactiveStatus = team.is_active === false
             return (
-              <a
+              <Link
                 key={team.id}
-                href={`/team/${team.id}`}
+                to={`/team/${team.id}`}
                 className={`rounded-2xl border p-6 transition-all shadow-glass flex flex-col justify-between text-left group ${
                   isInactiveStatus
                     ? 'bg-dark-950/40 border-dark-850 opacity-60 hover:opacity-80'
@@ -331,8 +340,8 @@ const SelectTeamView = () => {
                         </span>
                       )}
                     </div>
-                    <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/20 text-brand-400 capitalize">
-                      {team.category || 'general'}
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-brand-500/10 border border-brand-500/20 text-brand-400">
+                      {getTeamCategoryLabel(team.category)}
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
@@ -342,7 +351,7 @@ const SelectTeamView = () => {
                 <div className="pt-4 border-t border-dark-800/40 text-[10px] text-slate-500 flex justify-end font-semibold group-hover:text-white transition-colors">
                   {isInactiveStatus ? 'View Team Board (Read-Only) \u2192' : 'Enter Team Board \u2192'}
                 </div>
-              </a>
+              </Link>
             )
           })}
         </div>

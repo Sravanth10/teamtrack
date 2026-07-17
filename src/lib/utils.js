@@ -1,3 +1,29 @@
+// The fixed set of team categories. 'general' is kept as the internal value
+// (auto-add-to-general, engaged/non-engaged classification, and sticky notes
+// gating all key off this exact string) — only its displayed label changes.
+export const TEAM_CATEGORIES = [
+  { value: 'general', label: 'General (Internal)' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'prototype', label: 'Prototype' },
+  { value: 'gtm (cos)', label: 'GTM (CoS)' },
+  { value: 'staff', label: 'Staff' },
+  { value: 'assignment', label: 'Assignment' }
+]
+
+/**
+ * Maps a team's internal category value to its display label.
+ * Falls back to the raw value (capitalized) for any legacy/unmapped category.
+ * @param {string} category - The raw team.category value
+ * @returns {string} The display label
+ */
+export const getTeamCategoryLabel = (category) => {
+  const normalized = (category || '').toLowerCase().trim()
+  const match = TEAM_CATEGORIES.find(c => c.value === normalized)
+  if (match) return match.label
+  if (!normalized) return 'General (Internal)'
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
 /**
  * Calculates experience dynamically in months and days from a joining date.
  * @param {string} joiningDateStr - The joining date as a string (YYYY-MM-DD)

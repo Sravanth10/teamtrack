@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { X, Plus, UserMinus, UserPlus, Users, Loader } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import { TEAM_CATEGORIES } from '../lib/utils'
 
 export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
   const [name, setName] = useState('')
@@ -33,7 +34,14 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
       if (team) {
         setName(team.name)
         setDescription(team.description || '')
-        setCategory(team.category || 'general')
+        // A category value that predates the dropdown (or was never set) can't be
+        // matched to any <option> — a <select> bound to it can't display it and
+        // silently falls back to showing the first option, while state still holds
+        // the unmatched value underneath. Normalize to 'general' here so the
+        // dropdown's displayed selection and the actual saved state always agree.
+        const normalizedCategory = (team.category || '').toLowerCase().trim()
+        const validCategoryValues = TEAM_CATEGORIES.map(c => c.value)
+        setCategory(validCategoryValues.includes(normalizedCategory) ? normalizedCategory : 'general')
         setIsActive(team.is_active !== false)
         fetchMembers()
 
@@ -448,14 +456,16 @@ export const TeamModal = ({ team, isOpen, onClose, onSaved, labId }) => {
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                 Team Category
               </label>
-              <input
-                type="text"
+              <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white placeholder-slate-505 focus:border-brand-500 focus:outline-none text-sm"
-                placeholder="e.g. general, development, qa..."
+                className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white focus:border-brand-500 focus:outline-none text-sm"
                 required
-              />
+              >
+                {TEAM_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
             </div>
 
             {isEditMode && (

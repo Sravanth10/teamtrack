@@ -64,20 +64,46 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let isMounted = true
 
-    // Check active session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!isMounted) return
+    // Check active session. Raced against a timeout so a stalled/rejected
+    // session check (network hiccup, or a cross-tab auth lock that never
+    // resolves) can never leave the whole app stuck on the loading spinner
+    // forever — previously the only way out of that was a manual reload.
+    const sessionTimeout = new Promise((resolve) => {
+      setTimeout(() => resolve({ timedOut: true }), 8000)
+    })
 
-      if (session) {
-        setUser(session.user)
-        const prof = await fetchProfile(session.user.id)
-        if (isMounted) setProfile(prof)
-      } else {
+    Promise.race([
+      supabase.auth.getSession().then(({ data: { session } }) => ({ session })),
+      sessionTimeout
+    ])
+      .then(async (result) => {
+        if (!isMounted) return
+
+        if (result.timedOut) {
+          console.error('Session check timed out — proceeding without a cached session.')
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
+
+        if (result.session) {
+          setUser(result.session.user)
+          const prof = await fetchProfile(result.session.user.id)
+          if (isMounted) setProfile(prof)
+        } else {
+          setUser(null)
+          setProfile(null)
+        }
+        if (isMounted) setLoading(false)
+      })
+      .catch((err) => {
+        if (!isMounted) return
+        console.error('Error checking session:', err.message)
         setUser(null)
         setProfile(null)
-      }
-      if (isMounted) setLoading(false)
-    })
+        setLoading(false)
+      })
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

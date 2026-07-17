@@ -33,7 +33,7 @@ import {
   FlaskConical,
   ShieldCheck
 } from 'lucide-react'
-import { calculateDynamicExperience } from '../lib/utils'
+import { calculateDynamicExperience, getTeamCategoryLabel } from '../lib/utils'
 import swiftLogo from '../assets/swift_logo.png'
 import strideLogo from '../assets/stride_logo.png'
 
@@ -481,13 +481,13 @@ export const AdminDashboard = () => {
             engaged.push({
               ...user,
               teamName: userMemberships.map(m => m.teams?.name || 'N/A').join(', '),
-              teamCategory: userMemberships.map(m => m.teams?.category || 'N/A').join(', ')
+              teamCategory: userMemberships.map(m => m.teams?.category ? getTeamCategoryLabel(m.teams.category) : 'N/A').join(', ')
             })
           } else if (hasGeneralTeam) {
             nonEngaged.push({
               ...user,
               teamName: userMemberships.map(m => m.teams?.name || 'N/A').join(', '),
-              teamCategory: userMemberships.map(m => m.teams?.category || 'N/A').join(', ')
+              teamCategory: userMemberships.map(m => m.teams?.category ? getTeamCategoryLabel(m.teams.category) : 'N/A').join(', ')
             })
           }
         })
@@ -2071,7 +2071,7 @@ export const AdminDashboard = () => {
                                       </div>
                                       <div>
                                         <span className="font-semibold text-slate-500">Category: </span>
-                                        <span className="text-brand-400 font-medium capitalize">{user.teamCategory}</span>
+                                        <span className="text-brand-400 font-medium">{user.teamCategory}</span>
                                       </div>
                                     </div>
                                   </div>
@@ -2136,7 +2136,7 @@ export const AdminDashboard = () => {
                                       </div>
                                       <div>
                                         <span className="font-semibold text-slate-500">Category: </span>
-                                        <span className="text-amber-400 font-medium capitalize">{user.teamCategory}</span>
+                                        <span className="text-amber-400 font-medium">{user.teamCategory}</span>
                                       </div>
                                     </div>
                                   </div>

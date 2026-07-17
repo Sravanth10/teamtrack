@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { LogOut, User, Compass, Sun, Moon, QrCode, ShieldCheck, X, Loader, Users, ChevronDown, FlaskConical } from 'lucide-react'
 import swiftLogo from '../assets/swift_logo.png'
@@ -7,6 +8,7 @@ import { supabase } from '../lib/supabaseClient'
 import * as OTPAuth from 'otpauth'
 import { ProfileModal } from './ProfileModal'
 import { NotificationsBell } from './NotificationsBell'
+import { getTeamCategoryLabel } from '../lib/utils'
 
 export const Navbar = () => {
   const { profile, logout, refreshProfile, isSupervisor } = useAuth()
@@ -207,14 +209,14 @@ export const Navbar = () => {
           <div className="flex h-16 items-center justify-between">
             {/* Logo & Switcher */}
             <div className="flex items-center gap-4">
-              <a href="/" className="flex items-center gap-2">
+              <Link to="/" className="flex items-center gap-2">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-brand-600 to-brand-400 text-white shadow-glow-brand animate-pulse">
                   <Compass className="h-6 w-6" />
                 </div>
                 <span className="font-sans text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-brand-300 bg-clip-text text-transparent">
                   TeamTrack
                 </span>
-              </a>
+              </Link>
 
               {/* Team Workspace Switcher for Members */}
               {profile && profile.role === 'member' && userTeams.length > 0 && (
@@ -240,15 +242,15 @@ export const Navbar = () => {
                         <div className="fixed inset-0 z-40" onClick={() => setIsTeamsDropdownOpen(false)} />
                         <div className="absolute left-0 z-50 mt-2 w-64 rounded-xl border border-dark-800 bg-dark-900 p-2 shadow-2xl space-y-1">
                           {userTeams.map(t => (
-                            <a
+                            <Link
                               key={t.id}
-                              href={`/team/${t.id}`}
+                              to={`/team/${t.id}`}
                               onClick={() => setIsTeamsDropdownOpen(false)}
                               className="block rounded-lg px-3 py-2 text-xs text-slate-200 hover:bg-dark-800 hover:text-white transition font-sans font-semibold text-left"
                             >
                               <span className="block truncate">{t.name}</span>
-                              <span className="text-[9px] uppercase font-bold text-brand-400 mt-0.5 block">{t.category || 'General'}</span>
-                            </a>
+                              <span className="text-[9px] font-bold text-brand-400 mt-0.5 block">{getTeamCategoryLabel(t.category)}</span>
+                            </Link>
                           ))}
                         </div>
                       </>
