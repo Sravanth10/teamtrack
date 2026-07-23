@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { LogOut, User, Compass, Sun, Moon, QrCode, ShieldCheck, X, Loader, Users, ChevronDown, FlaskConical } from 'lucide-react'
+import { LogOut, User, Compass, Sun, Moon, QrCode, ShieldCheck, X, Loader, Users, ChevronDown, FlaskConical, CalendarCheck } from 'lucide-react'
 import swiftLogo from '../assets/swift_logo.png'
 import strideLogo from '../assets/stride_logo.png'
 import { supabase } from '../lib/supabaseClient'
 import * as OTPAuth from 'otpauth'
 import { ProfileModal } from './ProfileModal'
-import { NotificationsBell } from './NotificationsBell'
+import { ActivityCalendar } from './ActivityCalendar'
 import { getTeamCategoryLabel } from '../lib/utils'
 
 export const Navbar = () => {
@@ -46,6 +46,9 @@ export const Navbar = () => {
   
   // User profile modal state
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+
+  // Activity calendar modal state (members only)
+  const [isActivityCalendarOpen, setIsActivityCalendarOpen] = useState(false)
 
   useEffect(() => {
     if (profile) {
@@ -308,8 +311,16 @@ export const Navbar = () => {
                   </button>
                 )}
 
-                {/* Notifications Bell */}
-                <NotificationsBell />
+                {/* Activity Calendar (members only) */}
+                {profile.role === 'member' && (
+                  <button
+                    onClick={() => setIsActivityCalendarOpen(true)}
+                    className="flex items-center justify-center h-9 w-9 rounded-lg bg-dark-900 border border-dark-700 text-slate-350 transition-all duration-200 hover:bg-dark-800 hover:text-white hover:border-slate-500 focus:outline-none"
+                    title="My Activity Calendar"
+                  >
+                    <CalendarCheck className="h-4.5 w-4.5" />
+                  </button>
+                )}
 
                 {/* Profile Button */}
                 <button
@@ -444,10 +455,18 @@ export const Navbar = () => {
       )}
 
       {/* User Profile Modal */}
-      <ProfileModal 
-        isOpen={isProfileModalOpen} 
-        onClose={() => setIsProfileModalOpen(false)} 
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
       />
+
+      {/* Activity Calendar Modal (members only) */}
+      {profile?.role === 'member' && (
+        <ActivityCalendar
+          isOpen={isActivityCalendarOpen}
+          onClose={() => setIsActivityCalendarOpen(false)}
+        />
+      )}
     </>
   )
 }

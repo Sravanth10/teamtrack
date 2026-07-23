@@ -31,7 +31,8 @@ import {
   Phone,
   ArrowLeft,
   FlaskConical,
-  ShieldCheck
+  ShieldCheck,
+  BellRing
 } from 'lucide-react'
 import { calculateDynamicExperience, getTeamCategoryLabel } from '../lib/utils'
 import swiftLogo from '../assets/swift_logo.png'
@@ -115,6 +116,15 @@ const parseLeaveInfo = (description) => {
     leaveId: leaveIdMatch ? leaveIdMatch[1].trim() : null,
     reason: reasonMatch ? reasonMatch[1].trim() : description
   }
+}
+
+// Local calendar-day key (not UTC) — matches the day the user actually experienced,
+// used for grouping tasks/notes by day when computing missed-progress alerts.
+const toDateKey = (date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 const calculateExperience = (joiningDateStr) => {
@@ -231,6 +241,22 @@ export const AdminDashboard = () => {
       return 0
     }
   })
+
+  // Alerts Tab States (Lead Admin only, gated by supervisor-granted notifications_access)
+  const [alerts, setAlerts] = useState([])
+  const [alertsLoading, setAlertsLoading] = useState(false)
+  const [alertsMembers, setAlertsMembers] = useState([]) // roster for the member filter dropdown
+  const [alertsDateFrom, setAlertsDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 14)
+    return toDateKey(d)
+  })
+  const [alertsDateTo, setAlertsDateTo] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    return toDateKey(d)
+  })
+  const [alertsMemberFilter, setAlertsMemberFilter] = useState('all')
 
   // Team Overview States
   const [engagedCandidates, setEngagedCandidates] = useState([])
@@ -655,6 +681,134 @@ export const AdminDashboard = () => {
     }).sort((a, b) => b.fromDate - a.fromDate)
   }
 
+  // Computes "missed progress" alerts live, straight from tasks/task_updates — no
+  // stored notifications table or backfill job to keep in sync. A day counts as
+  // missed for a member if it's a weekday, on/after they joined, before today,
+  // within the selected date range, and they neither created a task/progress
+  // note nor applied a leave that day.
+  const fetchAlerts = async () => {
+    if (isSupervisor || profile?.notifications_access !== true) {
+      setAlerts([])
+      return
+    }
+
+    setAlertsLoading(true)
+    try {
+      const { data: assignments } = await supabase
+        .from('lab_admins')
+        .select('lab_id')
+        .eq('user_id', profile?.id)
+      const labIds = (assignments || []).map(a => a.lab_id)
+      if (labIds.length === 0) {
+        setAlerts([])
+        setAlertsMembers([])
+        return
+      }
+
+      const { data: teamRows } = await supabase.from('teams').select('id').in('lab_id', labIds)
+      const teamIds = (teamRows || []).map(t => t.id)
+      if (teamIds.length === 0) {
+        setAlerts([])
+        setAlertsMembers([])
+        return
+      }
+
+      const { data: memberRows } = await supabase
+        .from('team_members')
+        .select('user_id, users ( id, name, email, role, created_at )')
+        .in('team_id', teamIds)
+
+      const membersById = {}
+      ;(memberRows || []).forEach((m) => {
+        if (m.users && m.users.role === 'member') {
+          membersById[m.users.id] = m.users
+        }
+      })
+      const memberIds = Object.keys(membersById)
+      setAlertsMembers(
+        Object.values(membersById).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
+      )
+
+      if (memberIds.length === 0) {
+        setAlerts([])
+        return
+      }
+
+      const [y1, m1, d1] = alertsDateFrom.split('-').map(Number)
+      const [y2, m2, d2] = alertsDateTo.split('-').map(Number)
+      const rangeStart = new Date(y1, m1 - 1, d1)
+      const rangeEnd = new Date(y2, m2 - 1, d2, 23, 59, 59, 999)
+
+      const [{ data: tasksData }, { data: notesData }] = await Promise.all([
+        supabase
+          .from('tasks')
+          .select('created_by, title, created_at')
+          .in('created_by', memberIds)
+          .gte('created_at', rangeStart.toISOString())
+          .lte('created_at', rangeEnd.toISOString()),
+        supabase
+          .from('task_updates')
+          .select('user_id, created_at')
+          .in('user_id', memberIds)
+          .gte('created_at', rangeStart.toISOString())
+          .lte('created_at', rangeEnd.toISOString())
+      ])
+
+      const activityDays = new Set()
+      const leaveDays = new Set()
+
+      ;(tasksData || []).forEach((t) => {
+        const key = `${t.created_by}_${toDateKey(new Date(t.created_at))}`
+        if (t.title === 'Leave') {
+          leaveDays.add(key)
+        } else {
+          activityDays.add(key)
+        }
+      })
+      ;(notesData || []).forEach((n) => {
+        activityDays.add(`${n.user_id}_${toDateKey(new Date(n.created_at))}`)
+      })
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const result = []
+      memberIds.forEach((memberId) => {
+        const member = membersById[memberId]
+        const joinDate = member.created_at ? new Date(member.created_at) : null
+        if (joinDate) joinDate.setHours(0, 0, 0, 0)
+
+        for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) {
+          if (d >= today) continue
+          const dayOfWeek = d.getDay() // 0 = Sunday, 6 = Saturday
+          if (dayOfWeek === 0 || dayOfWeek === 6) continue
+          if (joinDate && d < joinDate) continue
+
+          const dateKey = toDateKey(d)
+          const key = `${memberId}_${dateKey}`
+          if (leaveDays.has(key) || activityDays.has(key)) continue
+
+          const memberName = member.name || member.email
+          result.push({
+            id: key,
+            memberId,
+            memberName,
+            date: dateKey,
+            dateObj: new Date(d),
+            message: `${memberName} has failed to record the daily progress on ${new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`
+          })
+        }
+      })
+
+      result.sort((a, b) => (a.date < b.date ? 1 : -1))
+      setAlerts(result)
+    } catch (err) {
+      console.error('Error fetching missed progress alerts:', err.message)
+    } finally {
+      setAlertsLoading(false)
+    }
+  }
+
   const handleDeleteMilestone = async (milestoneId) => {
     if (!window.confirm('Are you sure you want to remove this milestone?')) return
     try {
@@ -717,6 +871,15 @@ export const AdminDashboard = () => {
       }
     }
   }, [activeTab, leaves, profile?.id])
+
+  // Fetch/refetch Alerts whenever that tab is open or its date filters change —
+  // filters scope the underlying query, so results always match what's shown.
+  useEffect(() => {
+    if (activeTab === 'alerts') {
+      fetchAlerts()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, alertsDateFrom, alertsDateTo])
 
   // Manual non-debounced profile search query trigger for instant reloading after editing
   const triggerSearchQuery = async () => {
@@ -1094,6 +1257,10 @@ export const AdminDashboard = () => {
 
   const groupedLeavesList = getGroupedLeaves()
 
+  const filteredAlerts = alertsMemberFilter === 'all'
+    ? alerts
+    : alerts.filter(a => a.memberId === alertsMemberFilter)
+
   const generalTeams = teams.filter(t => t.is_active !== false && (t.category || '').toLowerCase().trim() === 'general')
   const specificTeams = teams.filter(t => t.is_active !== false && (t.category || '').toLowerCase().trim() !== 'general')
   const inactiveTeams = teams.filter(t => t.is_active === false)
@@ -1405,6 +1572,23 @@ export const AdminDashboard = () => {
                     : 'bg-amber-500 text-dark-950 border-amber-600 animate-pulse'
                 }`}>
                   {groupedLeavesList.length}
+                </span>
+              )}
+            </button>
+          )}
+          {!isSupervisor && profile?.notifications_access === true && (
+            <button
+              onClick={() => setActiveTab('alerts')}
+              className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+                activeTab === 'alerts'
+                  ? 'border-brand-500 text-white'
+                  : 'border-transparent text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>Alerts</span>
+              {alerts.length > 0 && (
+                <span className="bg-amber-500 text-dark-950 font-sans font-extrabold text-[10px] px-2 py-0.5 rounded-full border border-amber-600">
+                  {alerts.length}
                 </span>
               )}
             </button>
@@ -2238,6 +2422,98 @@ export const AdminDashboard = () => {
                         </div>
                       )
                     })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Active Tab: Alerts (Lead Admin only, gated by notifications_access) */}
+            {activeTab === 'alerts' && !isSupervisor && profile?.notifications_access === true && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b border-dark-800 pb-4 flex-wrap gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <BellRing className="h-5 w-5 text-brand-400" />
+                      Missed Progress Alerts
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Weekdays where a member neither logged task activity nor applied leave, across your Build Team.
+                    </p>
+                  </div>
+                  <div className="text-xs text-slate-450 bg-dark-900 border border-dark-800 px-3 py-1.5 rounded-xl font-bold shrink-0">
+                    Total: {filteredAlerts.length}
+                  </div>
+                </div>
+
+                {/* Filters row */}
+                <div className="flex flex-wrap items-end gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">From</label>
+                    <input
+                      type="date"
+                      value={alertsDateFrom}
+                      onChange={(e) => setAlertsDateFrom(e.target.value)}
+                      max={alertsDateTo}
+                      className="rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">To</label>
+                    <input
+                      type="date"
+                      value={alertsDateTo}
+                      onChange={(e) => setAlertsDateTo(e.target.value)}
+                      min={alertsDateFrom}
+                      max={toDateKey(new Date(Date.now() - 86400000))}
+                      className="rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Member</label>
+                    <select
+                      value={alertsMemberFilter}
+                      onChange={(e) => setAlertsMemberFilter(e.target.value)}
+                      className="rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none min-w-[180px]"
+                    >
+                      <option value="all">All Members</option>
+                      {alertsMembers.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name || m.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {alertsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <Loader className="h-8 w-8 text-brand-500 animate-spin" />
+                  </div>
+                ) : filteredAlerts.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8 bg-dark-900/30">
+                    <BellRing className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+                    <h3 className="text-base font-bold text-white mb-1">No Missed Progress</h3>
+                    <p className="text-sm text-slate-550">
+                      No members missed logging progress in the selected date range.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+                    {filteredAlerts.map((alert) => (
+                      <div
+                        key={alert.id}
+                        className="rounded-2xl border border-dark-800 bg-dark-900 p-5 flex flex-col gap-2 hover:border-rose-500/20 transition-colors shadow-glass"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-sans font-bold text-white text-sm truncate">{alert.memberName}</h4>
+                          <span className="px-2 py-0.5 text-[9px] uppercase font-bold tracking-wide rounded border shrink-0 bg-rose-500/10 text-rose-400 border-rose-500/20">
+                            Missed
+                          </span>
+                        </div>
+                        <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                          <Calendar className="h-3.5 w-3.5 text-brand-400" />
+                          {alert.dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
