@@ -20,7 +20,8 @@ import {
   Sparkles, 
   Cloud, 
   Briefcase,
-  Phone
+  Phone,
+  Clock
 } from 'lucide-react'
 import { calculateDynamicExperience } from '../lib/utils'
 
@@ -90,6 +91,7 @@ export const Login = () => {
   
   const [isSignUp, setIsSignUp] = useState(false)
   const [isForgotPassword, setIsForgotPassword] = useState(false)
+  const [resetCooldown, setResetCooldown] = useState(0) // seconds left before "Send Reset Link" can be clicked again
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -132,6 +134,13 @@ export const Login = () => {
     }
   }, [user, authLoading, navigate])
 
+  // Countdown for the "Send Reset Link" cooldown, so it re-enables itself a second at a time
+  useEffect(() => {
+    if (resetCooldown <= 0) return
+    const timer = setTimeout(() => setResetCooldown((prev) => Math.max(prev - 1, 0)), 1000)
+    return () => clearTimeout(timer)
+  }, [resetCooldown])
+
   const handleSkillSelect = (skill) => {
     if (!selectedSkills.includes(skill)) {
       setSelectedSkills([...selectedSkills, skill])
@@ -159,7 +168,12 @@ export const Login = () => {
         setError('Please enter your email address')
         return
       }
+      if (resetCooldown > 0) return
       setLoading(true)
+      // Start the cooldown as soon as a send is actually attempted (success or
+      // failure) — repeated clicks only burn through the rate limit, not speed
+      // anything up, so the button stays disabled for a few minutes either way.
+      setResetCooldown(180)
       try {
         const res = await resetPassword(email.trim())
         if (!res.success) throw new Error(res.error)
@@ -400,6 +414,19 @@ export const Login = () => {
             }
           </p>
         </div>
+
+        {/* Forgot Password: patience disclaimer — the reset email can be slow, and
+            repeatedly clicking "Forgot Password" only burns through the rate limit */}
+        {isForgotPassword && (
+          <div className="flex items-start gap-3 rounded-xl border-2 border-rose-500/40 bg-rose-500/10 p-4">
+            <Clock className="h-6 w-6 text-rose-400 shrink-0 mt-0.5" />
+            <p className="text-base font-bold text-rose-400 leading-relaxed">
+              Please be patient — the reset email can take a couple of minutes to arrive. If it still hasn't shown
+              up, contact your admin instead of clicking "Send Reset Link" again — repeated attempts will only
+              use up your allowed reset emails, not speed up delivery.
+            </p>
+          </div>
+        )}
 
         {/* Notifications */}
         {error && (
@@ -685,11 +712,13 @@ export const Login = () => {
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || (isForgotPassword && resetCooldown > 0)}
                   className="group relative flex w-full justify-center rounded-xl bg-brand-500 py-3 text-sm font-semibold text-white shadow-glow-brand transition-all duration-200 hover:bg-brand-655 focus:outline-none disabled:opacity-50"
                 >
                   {loading ? (
                     <Loader className="h-5 w-5 animate-spin" />
+                  ) : isForgotPassword && resetCooldown > 0 ? (
+                    `Try Again in ${Math.floor(resetCooldown / 60)}:${String(resetCooldown % 60).padStart(2, '0')}`
                   ) : (
                     isForgotPassword
                       ? 'Send Reset Link'

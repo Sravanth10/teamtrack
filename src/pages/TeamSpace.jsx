@@ -22,7 +22,8 @@ import {
   Trash2,
   FlaskConical,
   Pin,
-  Edit
+  Edit,
+  RefreshCw
 } from 'lucide-react'
 import swiftLogo from '../assets/swift_logo.png'
 import strideLogo from '../assets/stride_logo.png'
@@ -113,7 +114,7 @@ export const TeamSpace = () => {
     }
   }, [teamId])
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isRetry = false) => {
     if (!teamId) return
     setLoading(true)
     setError(null)
@@ -194,10 +195,19 @@ export const TeamSpace = () => {
         fetchStickyNotes()
       }
 
+      setLoading(false)
     } catch (err) {
       console.error('Error fetching team space details:', err.message)
+      if (!isRetry) {
+        // A fetch failure right after navigating in is often a transient blip
+        // (network hiccup, auth token refresh window) rather than a real
+        // problem — one silent retry clears most of these before ever
+        // surfacing an error, instead of crashing to a blank screen that only
+        // a manual reload would "fix".
+        setTimeout(() => fetchData(true), 800)
+        return
+      }
       setError(err.message)
-    } finally {
       setLoading(false)
     }
   }, [teamId, profile, fetchStickyNotes])
@@ -619,6 +629,33 @@ export const TeamSpace = () => {
               Logged in as {profile.email}
             </div>
           )}
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !team) {
+    // Reachable if the fetch failed even after the automatic retry, or (defensively)
+    // if loading somehow finished without team ever being set. Previously this
+    // fell through to the main render below, which read team.category etc. on a
+    // null team and crashed the whole tree with no error boundary to catch it —
+    // showing a blank page that only a manual reload would "fix".
+    return (
+      <div className="min-h-screen bg-dark-950 flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex flex-col justify-center items-center p-6 text-center">
+          <AlertCircle className="h-16 w-16 text-rose-500 mb-4" />
+          <h2 className="text-2xl font-extrabold text-white">Couldn't Load Team Space</h2>
+          <p className="text-sm text-slate-400 mt-2 max-w-md">
+            {error || 'Something went wrong loading this team space.'}
+          </p>
+          <button
+            onClick={() => fetchData()}
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-655 transition"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try Again
+          </button>
         </div>
       </div>
     )
