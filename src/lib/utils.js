@@ -25,6 +25,20 @@ export const getTeamCategoryLabel = (category) => {
 }
 
 /**
+ * Local calendar-day key (not UTC) — matches the day the user actually
+ * experienced, used for grouping tasks/notes by day (activity calendars,
+ * missed-progress alerts) regardless of timezone offset.
+ * @param {Date} date
+ * @returns {string} YYYY-MM-DD
+ */
+export const toDateKey = (date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/**
  * Calculates experience dynamically in months and days from a joining date.
  * @param {string} joiningDateStr - The joining date as a string (YYYY-MM-DD)
  * @returns {string} The formatted experience (e.g. "2 months, 5 days")

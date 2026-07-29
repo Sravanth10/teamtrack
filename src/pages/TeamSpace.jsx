@@ -218,6 +218,15 @@ export const TeamSpace = () => {
     }
   }, [profile, fetchData])
 
+  // Switching between team spaces (via the navbar's team switcher) doesn't
+  // remount this component — React Router reuses the same instance for the
+  // same route pattern, just with a new :teamId. Without this, a member who
+  // left one team space on the Track Pad view would land on the Track Pad of
+  // the next team space too, with no way back to the Board.
+  useEffect(() => {
+    setActiveView('board')
+  }, [teamId])
+
   useEffect(() => {
     if (activeView === 'trackpad') {
       fetchStickyNotes()
@@ -404,6 +413,20 @@ export const TeamSpace = () => {
     } finally {
       setIsSubmittingLeave(false)
     }
+  }
+
+  // Members can only cancel their own leave within 48 hours after its last day
+  // (e.g. a leave for Jul 9-10 can be cancelled through Jul 11, gone starting
+  // Jul 12). Admins/supervisors can cancel any leave at any time.
+  const canCancelLeave = (leave) => {
+    if (!profile) return false
+    if (profile.role === 'admin' || profile.role === 'supervisor') return true
+    if (leave.created_by !== profile.id) return false
+
+    const cutoff = new Date(leave.toDate)
+    cutoff.setHours(0, 0, 0, 0)
+    cutoff.setDate(cutoff.getDate() + 2)
+    return new Date() < cutoff
   }
 
   const handleCancelLeave = async (leaveIds) => {
@@ -1057,7 +1080,7 @@ export const TeamSpace = () => {
                   </p>
                 ) : (
                   getGroupedLeaves().map((leave) => {
-                    const canCancel = profile && (profile.role === 'admin' || profile.role === 'supervisor' || leave.created_by === profile.id);
+                    const canCancel = canCancelLeave(leave);
                     const formattedFrom = leave.fromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                     const formattedTo = leave.toDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                     const dateDisplay = formattedFrom === formattedTo ? formattedFrom : `${formattedFrom} - ${formattedTo}`

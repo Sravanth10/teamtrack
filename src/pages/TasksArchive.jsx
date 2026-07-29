@@ -14,6 +14,8 @@ export const TasksArchive = () => {
 
   const [team, setTeam] = useState(null)
   const [tasks, setTasks] = useState([])
+  const [members, setMembers] = useState([])
+  const [taskFilter, setTaskFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [accessDenied, setAccessDenied] = useState(false)
@@ -122,6 +124,24 @@ export const TasksArchive = () => {
       if (tasksErr) throw tasksErr
       setTasks(tasksData || [])
 
+      // 4. Fetch Members (for the task filter dropdown)
+      const { data: membersData, error: membersErr } = await supabase
+        .from('team_members')
+        .select(`
+          id,
+          user_id,
+          email,
+          users (
+            name,
+            email,
+            role
+          )
+        `)
+        .eq('team_id', teamId)
+
+      if (membersErr) throw membersErr
+      setMembers(membersData || [])
+
     } catch (err) {
       console.error('Error fetching tasks archive:', err.message)
       setError(err.message)
@@ -136,11 +156,24 @@ export const TasksArchive = () => {
     }
   }, [profile, fetchData])
 
+  // Reset the filter whenever the team or category changes, since this route's
+  // component instance can be reused across navigations rather than remounted.
+  useEffect(() => {
+    setTaskFilter('all')
+  }, [teamId, category])
+
   useEffect(() => {
     if (!authLoading && !profile) {
       navigate('/')
     }
   }, [profile, authLoading, navigate])
+
+  // Apply task filtering based on selection (same options as the team board)
+  const filteredTasks = tasks.filter(t => {
+    if (taskFilter === 'all') return true
+    if (taskFilter === 'me') return t.created_by === profile?.id
+    return t.created_by === taskFilter
+  })
 
   const handleUpdateStatus = async (taskId, newStatus) => {
     // Prevent members from changing status of tasks they did not create
@@ -241,9 +274,38 @@ export const TasksArchive = () => {
             </div>
           </div>
 
-          <div className={`flex items-center gap-2 rounded-xl border px-4 py-2 ${currentTheme.bg} ${currentTheme.border} ${currentTheme.text} text-xs font-bold shrink-0 self-start sm:self-auto`}>
-            {currentTheme.icon}
-            <span>Total Tasks: {tasks.length}</span>
+          <div className="flex items-center gap-3 shrink-0 self-start sm:self-auto">
+            {/* Task Filter Dropdown */}
+            <select
+              value={taskFilter}
+              onChange={(e) => setTaskFilter(e.target.value)}
+              className="rounded-xl border border-dark-700 bg-dark-900 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500/60 font-semibold transition hover:bg-dark-800 focus:ring-1 focus:ring-brand-500 cursor-pointer"
+            >
+              {profile && (profile.role === 'admin' || profile.role === 'supervisor') ? (
+                <>
+                  <option value="all">🔍 All Members</option>
+                  <option value="me">👤 My Tasks</option>
+                  {members.map((m) => {
+                    if (m.user_id === profile.id) return null
+                    return (
+                      <option key={m.user_id} value={m.user_id}>
+                        👤 {m.users?.name || m.email}
+                      </option>
+                    )
+                  })}
+                </>
+              ) : (
+                <>
+                  <option value="all">🌐 All Tasks</option>
+                  <option value="me">👤 My Tasks</option>
+                </>
+              )}
+            </select>
+
+            <div className={`flex items-center gap-2 rounded-xl border px-4 py-2 ${currentTheme.bg} ${currentTheme.border} ${currentTheme.text} text-xs font-bold`}>
+              {currentTheme.icon}
+              <span>Total Tasks: {filteredTasks.length}</span>
+            </div>
           </div>
         </div>
 
@@ -255,17 +317,19 @@ export const TasksArchive = () => {
 
         {/* Scrollable grid of task cards */}
         <div className="flex-1 w-full min-h-[400px]">
-          {tasks.length === 0 ? (
+          {filteredTasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 border border-dashed border-dark-800 rounded-2xl p-6 text-center max-w-md mx-auto">
               <Archive className="h-10 w-10 text-dark-700 mb-2" />
               <h3 className="text-base font-bold text-white font-sans">Archive is Empty</h3>
               <p className="text-xs text-slate-550 mt-1">
-                No tasks are currently listed under "{dbStatus}" in this team space.
+                {tasks.length === 0
+                  ? `No tasks are currently listed under "${dbStatus}" in this team space.`
+                  : 'No tasks match the selected filter.'}
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start pb-10">
-              {tasks.map(task => (
+              {filteredTasks.map(task => (
                 <TaskCard
                   key={task.id}
                   task={task}

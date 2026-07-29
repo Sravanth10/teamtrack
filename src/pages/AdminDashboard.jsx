@@ -1,159 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import Navbar from '../components/Navbar'
 import TeamModal from '../components/TeamModal'
-import { 
-  Users, 
-  FolderPlus, 
-  Settings, 
-  Trash2, 
-  ChevronRight, 
-  ChevronDown,
-  CheckCircle, 
-  Clock, 
-  AlertOctagon, 
-  CircleDot,
+import TeamsTab from '../components/admin/TeamsTab'
+import RegistrationsTab from '../components/admin/RegistrationsTab'
+import ProfilesTab from '../components/admin/ProfilesTab'
+import MilestonesTab from '../components/admin/MilestonesTab'
+import OverviewTab from '../components/admin/OverviewTab'
+import LeavesTab from '../components/admin/LeavesTab'
+import AlertsTab from '../components/admin/AlertsTab'
+import EditProfileModal from '../components/admin/EditProfileModal'
+import {
+  FolderPlus,
   Loader,
   Download,
-  Check,
-  X,
-  UserCheck,
-  Briefcase,
-  Sparkles,
-  Edit,
-  Search,
-  MapPin,
-  Calendar,
-  User,
-  Star,
-  Phone,
   ArrowLeft,
-  FlaskConical,
-  ShieldCheck,
-  BellRing
+  FlaskConical
 } from 'lucide-react'
-import { calculateDynamicExperience, getTeamCategoryLabel } from '../lib/utils'
+import { getTeamCategoryLabel, toDateKey } from '../lib/utils'
 import swiftLogo from '../assets/swift_logo.png'
 import strideLogo from '../assets/stride_logo.png'
-
-const PREDEFINED_SKILLS = [
-  'Artificial Intelligence (AI)',
-  'Generative AI',
-  'Large Language Models (LLMs)',
-  'Prompt Engineering',
-  'Retrieval-Augmented Generation (RAG)',
-  'LangChain',
-  'LlamaIndex',
-  'PyTorch',
-  'TensorFlow',
-  'Natural Language Processing (NLP)',
-  'Computer Vision',
-  'Vector Databases (Milvus, Pinecone, Chroma)',
-  
-  'Amazon Web Services (AWS)',
-  'Microsoft Azure',
-  'Google Cloud Platform (GCP)',
-  'Terraform (Infrastructure as Code)',
-  'Kubernetes (K8s)',
-  'Docker & Containerization',
-  'Cloud Security',
-  'Serverless Architecture',
-  'CI/CD Pipelines',
-  
-  'React.js',
-  'Next.js',
-  'Vue.js',
-  'Angular',
-  'Node.js',
-  'Express.js',
-  'FastAPI',
-  'Django',
-  'Flask',
-  'Spring Boot',
-  'Tailwind CSS',
-  'Bootstrap',
-  
-  'Python',
-  'JavaScript',
-  'TypeScript',
-  'Go (Golang)',
-  'Rust',
-  'SQL & Relational Databases',
-  'NoSQL Databases (MongoDB, Redis)',
-  'PostgreSQL'
-]
-
-const INDIVIDUAL_CATEGORIES = ['Billable', 'Core', 'Future Ready', 'GTM', 'Training']
-
-const REGIONS = [
-  { code: '+91', country: 'India', digits: 10, placeholder: '9876543210' },
-  { code: '+1', country: 'US/Canada', digits: 10, placeholder: '2015550123' },
-  { code: '+44', country: 'UK', digits: 10, placeholder: '7400123456' },
-  { code: '+61', country: 'Australia', digits: 9, placeholder: '412345678' },
-  { code: '+65', country: 'Singapore', digits: 8, placeholder: '81234567' },
-  { code: '+971', country: 'UAE', digits: 9, placeholder: '501234567' }
-]
-
-const parsePhone = (fullPhone) => {
-  if (!fullPhone) return { region: '+91', number: '' }
-  const match = REGIONS.find(r => fullPhone.startsWith(r.code + ' ') || fullPhone.startsWith(r.code))
-  if (match) {
-    const number = fullPhone.slice(match.code.length).trim()
-    return { region: match.code, number }
-  }
-  return { region: '+91', number: fullPhone }
-}
-
-const parseLeaveInfo = (description) => {
-  if (!description) return { type: 'Leave', leaveId: null, reason: '' }
-  const typeMatch = description.match(/\[Type:\s*([^\]]+)\]/i)
-  const leaveIdMatch = description.match(/\[Leave ID:\s*([^\]]+)\]/i)
-  const reasonMatch = description.match(/Reason:\s*(.*)$/i)
-  return {
-    type: typeMatch ? typeMatch[1].trim() : 'Leave',
-    leaveId: leaveIdMatch ? leaveIdMatch[1].trim() : null,
-    reason: reasonMatch ? reasonMatch[1].trim() : description
-  }
-}
-
-// Local calendar-day key (not UTC) — matches the day the user actually experienced,
-// used for grouping tasks/notes by day when computing missed-progress alerts.
-const toDateKey = (date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-const calculateExperience = (joiningDateStr) => {
-  if (!joiningDateStr) return '0 months'
-  const joinDate = new Date(joiningDateStr)
-  const currentDate = new Date()
-  
-  let years = currentDate.getFullYear() - joinDate.getFullYear()
-  let months = currentDate.getMonth() - joinDate.getMonth()
-  let days = currentDate.getDate() - joinDate.getDate()
-  
-  if (days < 0) {
-    months -= 1
-  }
-  if (months < 0) {
-    years -= 1
-    months += 12
-  }
-  
-  const yearText = years > 0 ? `${years} yr${years > 1 ? 's' : ''}` : ''
-  const monthText = months > 0 ? `${months} mo${months > 1 ? 's' : ''}` : ''
-  
-  if (yearText && monthText) {
-    return `${yearText}, ${monthText}`
-  }
-  if (yearText) return yearText
-  if (monthText) return monthText
-  return '0 months'
-}
 
 export const AdminDashboard = () => {
   const navigate = useNavigate()
@@ -190,9 +58,9 @@ export const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('teams') // 'teams' or 'registrations'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  
+
   const [currentLabId, setCurrentLabId] = useState(null)
-  
+
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -208,21 +76,6 @@ export const AdminDashboard = () => {
   const [searchLoading, setSearchLoading] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-
-  // Edit Modal form states
-  const [editName, setEditName] = useState('')
-  const [editRole, setEditRole] = useState('member')
-  const [editEmployeeId, setEditEmployeeId] = useState('')
-  const [editWorkLocation, setEditWorkLocation] = useState('')
-  const [editPhoneRegion, setEditPhoneRegion] = useState('+91')
-  const [editPhoneNo, setEditPhoneNo] = useState('')
-  const [editRapidJoiningDate, setEditRapidJoiningDate] = useState('')
-  const [editSkills, setEditSkills] = useState([])
-  const [skillsInput, setSkillsInput] = useState('')
-  const [isSkillsDropdownOpen, setIsSkillsDropdownOpen] = useState(false)
-  const [editSkillLevel, setEditSkillLevel] = useState('foundation')
-  const [editNotificationsAccess, setEditNotificationsAccess] = useState(false)
-  const [editIndividualCategory, setEditIndividualCategory] = useState('Training')
 
   // Milestones Tab States
   const [milestones, setMilestones] = useState([])
@@ -855,6 +708,7 @@ export const AdminDashboard = () => {
 
   useEffect(() => {
     loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [labId])
 
   // Mark leaves as "seen" while the Leaves tab is actively open, so the unread badge de-highlights
@@ -1070,112 +924,9 @@ export const AdminDashboard = () => {
     return () => clearTimeout(delayDebounce)
   }, [searchQuery, activeTab])
 
-  const handleOpenEditModal = async (user) => {
+  const handleOpenEditModal = (user) => {
     setEditingUser(user)
-    setEditName(user.name || '')
-    setEditRole(user.role || 'member')
-    setEditEmployeeId(user.employee_id || '')
-    setEditWorkLocation(user.work_location || '')
-    const parsedPhone = parsePhone(user.phone_number)
-    setEditPhoneRegion(parsedPhone.region)
-    setEditPhoneNo(parsedPhone.number)
-    setEditRapidJoiningDate(user.rapid_joining_date || '')
-    setEditSkills(user.skills || [])
-    setEditSkillLevel(user.skill_level || 'foundation')
-    setEditNotificationsAccess(user.notifications_access === true)
-    setSkillsInput('')
-    setIsSkillsDropdownOpen(false)
     setIsEditModalOpen(true)
-
-    // Individual Category lives in employee_skills_data, soft-linked via employee_id
-    setEditIndividualCategory(user.individualCategory || 'Training')
-    if (user.employee_id) {
-      const { data } = await supabase
-        .from('employee_skills_data')
-        .select('individual_category')
-        .eq('employee_id', user.employee_id)
-        .maybeSingle()
-      if (data?.individual_category) {
-        setEditIndividualCategory(data.individual_category)
-      }
-    }
-  }
-
-  const handleAddSkill = (skill) => {
-    if (!editSkills.includes(skill)) {
-      setEditSkills([...editSkills, skill])
-    }
-    setSkillsInput('')
-    setIsSkillsDropdownOpen(false)
-  }
-
-  const handleRemoveSkill = (skillToRemove) => {
-    setEditSkills(editSkills.filter(s => s !== skillToRemove))
-  }
-
-  const handleSaveProfile = async (e) => {
-    e.preventDefault()
-    if (!editingUser) return
-
-    const currentRegion = REGIONS.find(r => r.code === editPhoneRegion)
-    if (editPhoneNo.trim() && editPhoneNo.trim().length !== currentRegion.digits) {
-      alert(`Phone number for ${currentRegion.country} must be exactly ${currentRegion.digits} digits long`)
-      return
-    }
-
-    setLoading(true)
-    try {
-      const rapidExp = calculateExperience(editRapidJoiningDate)
-
-      const updatePayload = {
-        name: editName.trim(),
-        role: editRole,
-        employee_id: editEmployeeId.trim(),
-        work_location: editWorkLocation.trim(),
-        rapid_joining_date: editRapidJoiningDate || null,
-        rapid_experience: rapidExp,
-        skills: editSkills,
-        phone_number: editPhoneNo.trim() ? `${editPhoneRegion} ${editPhoneNo.trim()}` : null
-      }
-
-      // Only supervisors can modify the skill level of admins and members
-      if (profile?.role === 'supervisor') {
-        updatePayload.skill_level = editSkillLevel
-      }
-
-      // Only supervisors can grant/revoke the notifications feature, and only for Lead Admins
-      if (profile?.role === 'supervisor' && editRole === 'admin') {
-        updatePayload.notifications_access = editNotificationsAccess
-      }
-
-      const { error: updateErr } = await supabase
-        .from('users')
-        .update(updatePayload)
-        .eq('id', editingUser.id)
-
-      if (updateErr) throw updateErr
-
-      // Individual Category lives in employee_skills_data, soft-linked via employee_id
-      const savedEmployeeId = editEmployeeId.trim()
-      if (savedEmployeeId) {
-        const { error: catErr } = await supabase
-          .from('employee_skills_data')
-          .upsert(
-            { employee_id: savedEmployeeId, individual_category: editIndividualCategory, status: 'registered' },
-            { onConflict: 'employee_id' }
-          )
-        if (catErr) throw catErr
-      }
-
-      // Close modal and reload
-      setIsEditModalOpen(false)
-      setEditingUser(null)
-      await triggerSearchQuery()
-    } catch (err) {
-      alert(`Failed to save profile: ${err.message}`)
-    } finally {
-      setLoading(false)
-    }
   }
 
   const handleCreateClick = () => {
@@ -1222,14 +973,14 @@ export const AdminDashboard = () => {
     try {
       const { error: updateErr } = await supabase
         .from('users')
-        .update({ 
+        .update({
           approved_status: 'approved',
           role: selectedRole
         })
         .eq('id', userId)
 
       if (updateErr) throw updateErr
-      
+
       setApprovingUserId(null)
       loadData()
     } catch (err) {
@@ -1265,167 +1016,12 @@ export const AdminDashboard = () => {
   const specificTeams = teams.filter(t => t.is_active !== false && (t.category || '').toLowerCase().trim() !== 'general')
   const inactiveTeams = teams.filter(t => t.is_active === false)
 
-  const renderTeamCard = (team) => {
-    const memberCount = team.team_members?.length || 0
-    const tasksList = team.tasks || []
-    
-    const todoCount = tasksList.filter(t => t.status === 'To Do').length
-    const progressCount = tasksList.filter(t => t.status === 'In Progress').length
-    const blockedCount = tasksList.filter(t => t.status === 'Blocked').length
-    const doneCount = tasksList.filter(t => t.status === 'Done').length
-    const totalTasks = tasksList.length
-
-    const isInactive = team.is_active === false
-
-    return (
-      <div
-        key={team.id}
-        onClick={() => handleCardClick(team.id)}
-        className={`group relative flex flex-col justify-between rounded-2xl border p-6 shadow-glass hover:shadow-glass-hover hover:-translate-y-1 transition-all duration-300 cursor-pointer ${
-          isInactive
-            ? 'bg-dark-950/40 border-dark-850 opacity-65 hover:opacity-80'
-            : 'border-dark-800 bg-dark-900 hover:border-brand-500/30'
-        }`}
-      >
-        <div>
-          {/* Title Block */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h3 className="font-sans text-lg font-bold text-white transition-colors group-hover:text-brand-300">
-                {team.name}
-              </h3>
-              {isInactive && (
-                <span className="text-[9px] uppercase font-bold px-1.5 py-0.25 rounded bg-amber-500/10 border border-amber-500/25 text-amber-400">
-                  Deactivated
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={(e) => handleEditClick(e, team)}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-dark-800 hover:text-white transition"
-                title="Edit team & members"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
-              <button
-                onClick={(e) => handleDeleteClick(e, team.id)}
-                className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-500/10 transition"
-                title="Delete team"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Description */}
-          {team.description ? (
-            <p className="font-sans text-sm text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-              {team.description}
-            </p>
-          ) : (
-            <p className="font-sans text-sm text-slate-605 italic mt-2">
-              No description provided.
-            </p>
-          )}
-        </div>
-
-        {/* Stats & KPI Grid */}
-        <div className="mt-6 pt-5 border-t border-dark-800/80 space-y-4">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1.5">
-              <Users className="h-4 w-4 text-brand-400" />
-              Membership
-            </span>
-            <span className="font-bold text-white bg-dark-950 px-2 py-0.5 rounded-full border border-dark-850">
-              {memberCount} {memberCount === 1 ? 'member' : 'members'}
-            </span>
-          </div>
-
-          {/* Task metrics breakdown */}
-          <div className="space-y-2">
-            <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">
-              Tasks ({totalTasks})
-            </span>
-            
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
-                <span className="text-slate-400 flex items-center gap-1">
-                  <CircleDot className="h-3 w-3 text-slate-400" />
-                  To Do
-                </span>
-                <span className="font-bold text-white">{todoCount}</span>
-              </div>
-              <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
-                <span className="text-amber-400 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  In Progress
-                </span>
-                <span className="font-bold text-white">{progressCount}</span>
-              </div>
-              <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
-                <span className="text-rose-400 flex items-center gap-1">
-                  <AlertOctagon className="h-3 w-3" />
-                  Blocked
-                </span>
-                <span className="font-bold text-white">{blockedCount}</span>
-              </div>
-              <div className="flex items-center justify-between bg-dark-950 p-2 rounded-lg border border-dark-850">
-                <span className="text-emerald-405 flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3 text-emerald-400" />
-                  Done
-                </span>
-                <span className="font-bold text-white">{doneCount}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* View Arrow */}
-          <div className="flex justify-end text-xs font-bold text-brand-400 group-hover:text-brand-300 transition-colors items-center gap-0.5">
-            <span>Enter Team Space</span>
-            <ChevronRight className="h-4 w-4" />
-          </div>
-
-          {/* Supervisor-Only Meta Data */}
-          {profile?.role === 'supervisor' && (team.customer || team.received_date || team.bg_market || team.stage) && (
-            <div className="mt-4 pt-4 border-t border-dark-800/60 grid grid-cols-2 gap-x-3 gap-y-3 text-[11px] text-slate-400">
-              {team.customer && (
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Customer</span>
-                  <span className="text-white truncate block font-medium">{team.customer}</span>
-                </div>
-              )}
-              {team.received_date && (
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Received Date</span>
-                  <span className="text-white block font-medium">{new Date(team.received_date).toLocaleDateString()}</span>
-                </div>
-              )}
-              {team.bg_market && (
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">BG/Market</span>
-                  <span className="text-white truncate block font-medium capitalize">{team.bg_market}</span>
-                </div>
-              )}
-              {team.stage && (
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Stage</span>
-                  <span className="text-white truncate block font-medium capitalize">{team.stage}</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-dark-950 flex flex-col">
       <Navbar />
 
       <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-8 sm:px-6 lg:px-8 space-y-8">
-        
+
         {/* Back to All Build Teams — shown when supervisor is inside a specific lab */}
         {isSupervisorView && (
           <button
@@ -1457,7 +1053,7 @@ export const AdminDashboard = () => {
               </p>
             </div>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={handleExportCSV}
@@ -1467,7 +1063,7 @@ export const AdminDashboard = () => {
               <Download className="h-5 w-5 text-brand-400" />
               {exporting ? 'Exporting...' : 'Export Report (Excel/CSV)'}
             </button>
-            
+
             <button
               onClick={handleCreateClick}
               className="flex items-center justify-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm px-5 py-3 transition shadow-glow-brand"
@@ -1489,8 +1085,8 @@ export const AdminDashboard = () => {
           <button
             onClick={() => setActiveTab('teams')}
             className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all ${
-              activeTab === 'teams' 
-                ? 'border-brand-500 text-white' 
+              activeTab === 'teams'
+                ? 'border-brand-500 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
@@ -1499,8 +1095,8 @@ export const AdminDashboard = () => {
           <button
             onClick={() => setActiveTab('registrations')}
             className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-              activeTab === 'registrations' 
-                ? 'border-brand-500 text-white' 
+              activeTab === 'registrations'
+                ? 'border-brand-500 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
@@ -1514,8 +1110,8 @@ export const AdminDashboard = () => {
           <button
             onClick={() => setActiveTab('profiles')}
             className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all ${
-              activeTab === 'profiles' 
-                ? 'border-brand-500 text-white' 
+              activeTab === 'profiles'
+                ? 'border-brand-500 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
@@ -1527,8 +1123,8 @@ export const AdminDashboard = () => {
               fetchMilestones()
             }}
             className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-              activeTab === 'milestones' 
-                ? 'border-brand-500 text-white' 
+              activeTab === 'milestones'
+                ? 'border-brand-500 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
@@ -1545,8 +1141,8 @@ export const AdminDashboard = () => {
               fetchOverviewData()
             }}
             className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-              activeTab === 'overview' 
-                ? 'border-brand-500 text-white' 
+              activeTab === 'overview'
+                ? 'border-brand-500 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
@@ -1602,921 +1198,85 @@ export const AdminDashboard = () => {
           </div>
         ) : (
           <>
-            {/* Active Tab: Teams spaces */}
             {activeTab === 'teams' && (
-              <>
-                {teams.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8">
-                    <Users className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-base font-bold text-white mb-1">No Team Spaces</h3>
-                    <p className="text-sm text-slate-505 mb-6">
-                      Get started by creating your very first team space for your company or project.
-                    </p>
-                    <button
-                      onClick={handleCreateClick}
-                      className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-650 transition"
-                    >
-                      <FolderPlus className="h-4.5 w-4.5" />
-                      Create Team
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-8">
-                    {/* General Teams Section */}
-                    {generalTeams.length > 0 && (
-                      <div className="space-y-4">
-                        <button
-                          onClick={() => setIsGeneralTeamsCollapsed(!isGeneralTeamsCollapsed)}
-                          className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full bg-brand-400" />
-                            <h3 className="text-base font-bold text-white uppercase tracking-wider">
-                              General Team Spaces ({generalTeams.length})
-                            </h3>
-                          </div>
-                          {isGeneralTeamsCollapsed ? (
-                            <ChevronRight className="h-5 w-5 text-slate-500" />
-                          ) : (
-                            <ChevronDown className="h-5 w-5 text-slate-500" />
-                          )}
-                        </button>
-                        {!isGeneralTeamsCollapsed && (
-                          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 pl-3">
-                            {generalTeams.map((team) => renderTeamCard(team))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Specific Teams Section */}
-                    {specificTeams.length > 0 && (
-                      <div className="space-y-4 pt-4 border-t border-dark-800/40">
-                        <button
-                          onClick={() => setIsSpecificTeamsCollapsed(!isSpecificTeamsCollapsed)}
-                          className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full bg-violet-400" />
-                            <h3 className="text-base font-bold text-white uppercase tracking-wider">
-                              Team Specific Spaces ({specificTeams.length})
-                            </h3>
-                          </div>
-                          {isSpecificTeamsCollapsed ? (
-                            <ChevronRight className="h-5 w-5 text-slate-500" />
-                          ) : (
-                            <ChevronDown className="h-5 w-5 text-slate-500" />
-                          )}
-                        </button>
-                        {!isSpecificTeamsCollapsed && (
-                          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 pl-3">
-                            {specificTeams.map((team) => renderTeamCard(team))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Inactive Teams Section */}
-                    {inactiveTeams.length > 0 && (
-                      <div className="space-y-4 pt-4 border-t border-dark-800/40">
-                        <button
-                          onClick={() => setIsInactiveTeamsCollapsed(!isInactiveTeamsCollapsed)}
-                          className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="h-2.5 w-2.5 rounded-full bg-slate-500" />
-                            <h3 className="text-base font-bold text-white uppercase tracking-wider">
-                              Inactive Teams ({inactiveTeams.length})
-                            </h3>
-                          </div>
-                          {isInactiveTeamsCollapsed ? (
-                            <ChevronRight className="h-5 w-5 text-slate-500" />
-                          ) : (
-                            <ChevronDown className="h-5 w-5 text-slate-500" />
-                          )}
-                        </button>
-                        {!isInactiveTeamsCollapsed && (
-                          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 pl-3">
-                            {inactiveTeams.map((team) => renderTeamCard(team))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
+              <TeamsTab
+                teams={teams}
+                generalTeams={generalTeams}
+                specificTeams={specificTeams}
+                inactiveTeams={inactiveTeams}
+                profile={profile}
+                isGeneralTeamsCollapsed={isGeneralTeamsCollapsed}
+                onToggleGeneralTeamsCollapsed={() => setIsGeneralTeamsCollapsed(!isGeneralTeamsCollapsed)}
+                isSpecificTeamsCollapsed={isSpecificTeamsCollapsed}
+                onToggleSpecificTeamsCollapsed={() => setIsSpecificTeamsCollapsed(!isSpecificTeamsCollapsed)}
+                isInactiveTeamsCollapsed={isInactiveTeamsCollapsed}
+                onToggleInactiveTeamsCollapsed={() => setIsInactiveTeamsCollapsed(!isInactiveTeamsCollapsed)}
+                onCreateClick={handleCreateClick}
+                onCardClick={handleCardClick}
+                onEditClick={handleEditClick}
+                onDeleteClick={handleDeleteClick}
+              />
             )}
 
-            {/* Active Tab: User approvals */}
             {activeTab === 'registrations' && (
-              <>
-                {pendingUsers.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8">
-                    <UserCheck className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-base font-bold text-white mb-1 font-sans">No Pending Registrations</h3>
-                    <p className="text-sm text-slate-500">
-                      All user registration requests have been processed. New requests will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {pendingUsers.map((u) => (
-                      <div 
-                        key={u.id}
-                        className="rounded-2xl border border-dark-800 bg-dark-900 p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-glass hover:border-brand-500/10 transition-colors"
-                      >
-                        {/* User Details */}
-                        <div className="space-y-3 flex-1 min-w-0">
-                          <div className="flex flex-wrap items-baseline gap-2">
-                            <h3 className="font-sans text-lg font-bold text-white truncate">{u.name}</h3>
-                            <span className="text-xs text-slate-500 font-mono select-all">{u.email}</span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-slate-450">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Emp ID:</span>
-                              <span className="text-slate-200">{u.employee_id || 'N/A'}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Location:</span>
-                              <span className="text-slate-200">{u.work_location || 'N/A'}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Phone Number:</span>
-                              <span className="text-slate-200">{u.phone_number || 'N/A'}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Rapid Exp:</span>
-                              <span className="text-slate-200">{calculateDynamicExperience(u.rapid_joining_date)} <span className="text-slate-500 text-[10px]">({u.rapid_joining_date || 'N/A'})</span></span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                               <span className="font-semibold text-slate-500 uppercase tracking-wide text-[10px]">Skill Level:</span>
-                               <span className="text-slate-200 capitalize">{u.skill_level || 'foundation'}</span>
-                             </div>
-                          </div>
-
-                          {/* Skills tags */}
-                          <div className="space-y-1.5">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 flex items-center gap-1">
-                              <Sparkles className="h-3.5 w-3.5 text-brand-400" />
-                              Technical Skills
-                            </span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {u.skills && u.skills.length > 0 ? (
-                                u.skills.map((skill) => (
-                                  <span 
-                                    key={skill}
-                                    className="inline-flex rounded bg-dark-950 border border-dark-800 px-2 py-0.5 text-xs text-slate-350 font-medium"
-                                  >
-                                    {skill}
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-xs text-slate-600 italic">No skills listed.</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Approval Actions */}
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-                          {approvingUserId === u.id ? (
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-dark-950 border border-dark-850 p-2.5 rounded-xl">
-                              <div className="flex items-center gap-2">
-                                <label className="text-xs font-bold text-slate-450 uppercase shrink-0">Assign Role:</label>
-                                <select
-                                  value={selectedRole}
-                                  onChange={(e) => setSelectedRole(e.target.value)}
-                                  className="rounded-lg border border-dark-700 bg-dark-900 px-2.5 py-1 text-xs text-white focus:border-brand-500 focus:outline-none"
-                                >
-                                  <option value="member">Team Member</option>
-                                  <option value="admin">Lead Admin</option>
-                                </select>
-                              </div>
-                              <div className="flex gap-1.5">
-                                <button
-                                  onClick={() => handleConfirmApproval(u.id)}
-                                  className="flex items-center justify-center gap-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-3 py-1.5 transition"
-                                >
-                                  <Check className="h-3.5 w-3.5" />
-                                  Confirm
-                                </button>
-                                <button
-                                  onClick={() => setApprovingUserId(null)}
-                                  className="flex items-center justify-center rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-400 hover:text-white px-2 py-1.5 transition"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleApproveClick(u.id)}
-                                className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm px-5 py-2.5 transition"
-                              >
-                                <Check className="h-4.5 w-4.5" />
-                                Approve User
-                              </button>
-                              <button
-                                onClick={() => handleRejectClick(u.id)}
-                                className="flex items-center justify-center gap-1.5 rounded-xl bg-dark-900 border border-rose-500/20 hover:bg-rose-500/10 text-rose-400 hover:text-rose-200 font-semibold text-sm px-5 py-2.5 transition"
-                              >
-                                <X className="h-4.5 w-4.5" />
-                                Reject
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
+              <RegistrationsTab
+                pendingUsers={pendingUsers}
+                approvingUserId={approvingUserId}
+                selectedRole={selectedRole}
+                onApproveClick={handleApproveClick}
+                onCancelApprove={() => setApprovingUserId(null)}
+                onSelectedRoleChange={setSelectedRole}
+                onConfirmApproval={handleConfirmApproval}
+                onRejectClick={handleRejectClick}
+              />
             )}
 
-            {/* Active Tab: User Profiles */}
             {activeTab === 'profiles' && (
-              <div className="space-y-6">
-                {/* Search Bar Block */}
-                <div className="relative max-w-xl mx-auto">
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
-                      <Search className="h-5 w-5" />
-                    </span>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="block w-full rounded-xl border border-dark-700 bg-dark-900/60 py-3 pl-11 pr-4 text-white placeholder-slate-550 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 text-sm transition shadow-glass"
-                      placeholder="Search profiles by Name, Email, or Employee ID..."
-                    />
-                  </div>
-                </div>
-
-                {/* Search Results / Prompt Screen */}
-                {!searchQuery.trim() ? (
-                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8 bg-dark-900/30">
-                    <Search className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-base font-bold text-white mb-1">Search User Profiles</h3>
-                    <p className="text-sm text-slate-550">
-                      Type name, email, or employee ID in the search box above to dynamically load user profile cards.
-                    </p>
-                  </div>
-                ) : searchLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Loader className="h-8 w-8 text-brand-500 animate-spin" />
-                  </div>
-                ) : searchResults.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8 bg-dark-900/30">
-                    <Users className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-base font-bold text-white mb-1">No Matching Profiles</h3>
-                    <p className="text-sm text-slate-550">
-                      No registered profiles match "{searchQuery}". Try typing another name or employee ID.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-                    {searchResults.map((user) => {
-                      const userTasks = user.tasks || []
-                      const todoTasks = userTasks.filter(t => t.status === 'To Do' && t.title !== 'Leave')
-                      const progressTasks = userTasks.filter(t => t.status === 'In Progress' && t.title !== 'Leave')
-                      const blockedTasks = userTasks.filter(t => t.status === 'Blocked' && t.title !== 'Leave')
-                      const doneTasks = userTasks.filter(t => t.status === 'Done' && t.title !== 'Leave')
-                      const leaveTasks = userTasks.filter(t => t.title === 'Leave')
-
-                      return (
-                        <div
-                          key={user.id}
-                          className="relative flex flex-col justify-between rounded-2xl border border-dark-800 bg-dark-900 p-6 shadow-glass hover:border-brand-500/20 transition-all duration-300"
-                        >
-                          {/* Edit Icon Button */}
-                          <button
-                            onClick={() => handleOpenEditModal(user)}
-                            className="absolute top-4 right-4 rounded-xl p-2 bg-dark-950 border border-dark-800 text-slate-450 hover:bg-dark-800 hover:text-white transition"
-                            title="Edit Profile"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-
-                          <div className="space-y-5">
-                            {/* Header Info */}
-                            <div className="flex items-center gap-3">
-                              <div className="h-11 w-11 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white font-bold text-sm uppercase flex items-center justify-center shadow-glow-brand shrink-0">
-                                {user.name ? user.name.slice(0, 2) : 'U'}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h3 className="font-sans text-base font-extrabold text-white truncate max-w-[180px]">
-                                    {user.name}
-                                  </h3>
-                                  <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-dark-950 border border-dark-850 text-slate-450">
-                                    {user.role}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-slate-500 truncate select-all">{user.email}</p>
-                              </div>
-                            </div>
-
-                            {/* Job Details Metadata Grid */}
-                            <div className="grid grid-cols-2 gap-4 rounded-xl bg-dark-950/50 border border-dark-800/80 p-4 text-xs">
-                              <div>
-                                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Employee ID</span>
-                                <span className="font-semibold text-slate-205">{user.employee_id || 'N/A'}</span>
-                              </div>
-                              <div>
-                                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Location</span>
-                                <span className="font-semibold text-slate-205">{user.work_location || 'N/A'}</span>
-                              </div>
-                              <div>
-                                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Phone Number</span>
-                                <span className="font-semibold text-slate-205 block">{user.phone_number || 'N/A'}</span>
-                              </div>
-                                                           <div>
-                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Rapid Build Exp</span>
-                                 <span className="font-semibold text-slate-205 block">{calculateDynamicExperience(user.rapid_joining_date)}</span>
-                                 <span className="text-[10px] text-slate-500">Joined: {user.rapid_joining_date || 'N/A'}</span>
-                               </div>
-                               <div>
-                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Skill Level</span>
-                                 <span className="font-semibold text-slate-205 block capitalize">{user.skill_level || 'foundation'}</span>
-                               </div>
-                               <div>
-                                 <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block mb-0.5">Individual Category</span>
-                                 <span className="font-semibold text-slate-205 block">{user.individualCategory || 'Training'}</span>
-                               </div>
-                              <div className="col-span-2 pt-2 border-t border-dark-800/60 flex items-center justify-between">
-                                <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550">Team Workspace</span>
-                                <span className="font-bold text-brand-400 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded text-[10px]">
-                                  {user.teamName}
-                                </span>
-                              </div>
-                              {user.role !== 'supervisor' && (
-                                <div className="col-span-2 pt-2 border-t border-dark-800/60 flex items-center justify-between">
-                                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550">Build Team Assignment</span>
-                                  <span className="font-bold text-violet-400 bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 rounded text-[10px]">
-                                    {user.labName || 'None'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Skills Tags */}
-                            <div className="space-y-1.5">
-                              <span className="text-[9px] uppercase font-bold tracking-wider text-slate-550 block">Skills Set</span>
-                              <div className="flex flex-wrap gap-1">
-                                {user.skills && user.skills.length > 0 ? (
-                                  user.skills.map(s => (
-                                    <span
-                                      key={s}
-                                      className="inline-flex rounded-lg border border-dark-800 bg-dark-950 px-2 py-0.5 text-[10px] text-slate-350"
-                                    >
-                                      {s}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-xs text-slate-600 italic">No skills listed.</span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Tasks & Note Updates Consolidation */}
-                            <div className="space-y-2 border-t border-dark-800/80 pt-4">
-                              <h4 className="font-sans text-xs font-bold text-white flex items-center justify-between">
-                                <span>Recorded Tasks ({userTasks.length})</span>
-                                <span className="text-[10px] text-slate-500 font-normal">Created by user</span>
-                              </h4>
-
-                              {userTasks.length === 0 ? (
-                                <p className="text-xs text-slate-600 italic">No tasks recorded by this user.</p>
-                              ) : (
-                                <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                                  {userTasks.map(t => {
-                                    const statusStyles = {
-                                      'To Do': 'bg-slate-500/10 text-slate-400 border-slate-500/20',
-                                      'In Progress': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-                                      'Blocked': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-                                      'Done': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                    }
-                                    const isLeave = t.title === 'Leave'
-                                    const statusBadge = isLeave ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' : (statusStyles[t.status] || 'bg-slate-550')
-
-                                    return (
-                                      <div key={t.id} className="rounded-xl border border-dark-800 bg-dark-950/40 p-3 space-y-2 text-xs">
-                                        <div className="flex items-start justify-between gap-2">
-                                          <span className="font-bold text-slate-200 leading-tight">{t.title}</span>
-                                          <span className={`px-1.5 py-0.25 text-[9px] uppercase font-bold tracking-wide rounded border shrink-0 ${statusBadge}`}>
-                                            {isLeave ? 'Leave' : t.status}
-                                          </span>
-                                        </div>
-                                        {t.description && (
-                                          <p className="text-slate-400 leading-relaxed text-[11px] bg-dark-950/20 p-1.5 rounded border border-dark-850/40">
-                                            {t.description}
-                                          </p>
-                                        )}
-                                        
-                                        {/* Show task updates/notes */}
-                                        {t.task_updates && t.task_updates.length > 0 && (
-                                          <div className="space-y-1.5 pt-1.5 border-t border-dark-800/40">
-                                            <span className="text-[9px] uppercase font-bold tracking-wider text-slate-500 block">Note Updates</span>
-                                            {t.task_updates.map(up => (
-                                              <div key={up.id} className="text-[11px] text-slate-350 leading-normal pl-2 border-l border-brand-500/30 py-0.5">
-                                                {up.note}
-                                                <span className="text-[9px] text-slate-550 block mt-0.5">
-                                                  {new Date(up.created_at).toLocaleDateString()}
-                                                </span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+              <ProfilesTab
+                searchQuery={searchQuery}
+                onSearchQueryChange={setSearchQuery}
+                searchLoading={searchLoading}
+                searchResults={searchResults}
+                onEditUser={handleOpenEditModal}
+              />
             )}
 
-            {/* Active Tab: Milestones */}
             {activeTab === 'milestones' && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between border-b border-dark-800 pb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      <Star className="h-5 w-5 text-amber-400 fill-current" />
-                      Remarkable Milestones
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Consolidated view of achievements and progress milestones marked by team administrators.
-                    </p>
-                  </div>
-                  <div className="text-xs text-slate-450 bg-dark-900 border border-dark-800 px-3 py-1.5 rounded-xl font-bold shrink-0">
-                    Total: {milestones.length}
-                  </div>
-                </div>
-
-                {milestonesLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Loader className="h-8 w-8 text-brand-500 animate-spin" />
-                  </div>
-                ) : milestones.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8 bg-dark-900/30">
-                    <Star className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-base font-bold text-white mb-1">No Milestones Recorded</h3>
-                    <p className="text-sm text-slate-550">
-                      Admins can mark developer progress notes as milestones inside task details modals.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-6 grid-cols-1 xl:grid-cols-2">
-                    {milestones.map((milestone) => {
-                      const rawTask = milestone.tasks
-                      const task = Array.isArray(rawTask) ? (rawTask[0] || {}) : (rawTask || {})
-                      const rawNote = milestone.task_updates
-                      const note = Array.isArray(rawNote) ? (rawNote[0] || {}) : (rawNote || {})
-
-                      // Slicing statuses styles
-                      const statusStyles = {
-                        'To Do': 'bg-slate-500/10 text-slate-400 border-slate-500/20 border-l-slate-500',
-                        'In Progress': 'bg-amber-500/10 text-amber-400 border-amber-500/20 border-l-amber-500',
-                        'Blocked': 'bg-rose-500/10 text-rose-400 border-rose-500/20 border-l-rose-500',
-                        'Done': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 border-l-emerald-500'
-                      }
-                      const taskStyle = statusStyles[task.status] || statusStyles['To Do']
-
-                      const formattedTaskDate = task.created_at ? new Date(task.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      }) : 'N/A'
-
-                      return (
-                        <div
-                          key={milestone.id}
-                          className="rounded-2xl border border-dark-800 bg-dark-900 p-6 flex flex-col justify-between gap-5 hover:border-brand-500/10 transition-colors shadow-glass relative"
-                        >
-                          {/* Remove button */}
-                          <button
-                            onClick={() => handleDeleteMilestone(milestone.id)}
-                            className="absolute top-4 right-4 rounded-lg p-1.5 text-slate-500 hover:bg-rose-500/15 hover:text-rose-400 transition"
-                            title="Delete Milestone"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-
-                          <div className="space-y-4 flex-1">
-                            {/* Developer Name */}
-                            <div className="pr-10">
-                              <span className="text-[9px] uppercase font-bold tracking-wider text-slate-500 block">Developer</span>
-                              <span className="text-sm font-bold text-brand-400">
-                                {note.users?.name || note.users?.email || 'N/A'}
-                              </span>
-                            </div>
-
-                            {/* Title Block */}
-                            <div>
-                              <span className="text-[9px] uppercase font-bold tracking-wider text-slate-500 block mb-1">Associated Task Card</span>
-                              <div className={`rounded-xl border border-l-4 bg-dark-950/40 p-4 space-y-2 text-xs ${taskStyle}`}>
-                                <div className="flex items-start justify-between gap-2">
-                                  <h4 className="font-sans font-bold text-white text-sm line-clamp-1">{task.title || 'Untitled Task'}</h4>
-                                  <span className="px-1.5 py-0.25 text-[9px] uppercase font-bold tracking-wide rounded border shrink-0">
-                                    {task.status}
-                                  </span>
-                                </div>
-                                {task.description ? (
-                                  <p className="text-slate-400 leading-relaxed line-clamp-2 text-[11px]">
-                                    {task.description}
-                                  </p>
-                                ) : (
-                                  <p className="text-slate-600 italic text-[11px]">No description.</p>
-                                )}
-                                <div className="flex flex-wrap items-center gap-4 text-[10px] text-slate-500 pt-1.5 border-t border-dark-800/40">
-                                  <span>Created: {formattedTaskDate}</span>
-                                  {task.deadline && (
-                                    <span className="text-slate-400 font-medium">
-                                      Deadline: {new Date(task.deadline).toLocaleDateString()}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Original Developer Progress Note */}
-                            <div className="space-y-1.5">
-                              <span className="text-[9px] uppercase font-bold tracking-wider text-slate-505 block">Progress Note Update</span>
-                              <div className="bg-dark-950/20 border border-dark-850 p-3 rounded-xl text-xs text-slate-300 leading-relaxed font-sans italic">
-                                "{note.note || 'Progress note deleted/unavailable'}"
-                                <span className="text-[9px] text-slate-550 block mt-1.5 not-italic">
-                                  Posted on {note.created_at ? new Date(note.created_at).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  }) : 'N/A'}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Admin's Milestone Summary */}
-                            <div className="space-y-1.5 bg-brand-500/5 border border-brand-500/10 p-3 rounded-xl">
-                              <span className="text-[9px] uppercase font-bold tracking-wider text-brand-400 block">Milestone Description (Admin Summary)</span>
-                              <p className="text-xs text-slate-200 leading-relaxed font-medium">
-                                {milestone.milestone_description}
-                              </p>
-                              <span className="text-[9px] text-slate-500 block">
-                                Marked on {new Date(milestone.created_at).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+              <MilestonesTab
+                milestones={milestones}
+                milestonesLoading={milestonesLoading}
+                onDeleteMilestone={handleDeleteMilestone}
+              />
             )}
 
-            {/* Active Tab: Team Overview */}
             {activeTab === 'overview' && (
-              <div className="space-y-8">
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-dark-800 pb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      <Users className="h-5 w-5 text-brand-400" />
-                      Team Engagement Overview
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Real-time lists of candidates classified as engaged or non-engaged based on their team categories.
-                    </p>
-                  </div>
-                </div>
-
-                {overviewLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Loader className="h-8 w-8 text-brand-500 animate-spin" />
-                  </div>
-                ) : (
-                  <div className="space-y-8">
-                    
-                    {/* Engaged Candidates List */}
-                    <div className="space-y-4">
-                      <button
-                        onClick={() => setIsEngagedCollapsed(!isEngagedCollapsed)}
-                        className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-                          <h3 className="text-lg font-bold text-white">
-                            Engaged Candidates ({engagedCandidates.length})
-                          </h3>
-                        </div>
-                        {isEngagedCollapsed ? (
-                          <ChevronRight className="h-5 w-5 text-slate-500" />
-                        ) : (
-                          <ChevronDown className="h-5 w-5 text-slate-500" />
-                        )}
-                      </button>
-                      
-                      {!isEngagedCollapsed && (
-                        <>
-                          {engagedCandidates.length === 0 ? (
-                            <p className="text-xs text-slate-505 italic py-2 pl-3">
-                              No engaged candidates found. (Candidates who belong to at least one team with a category other than 'general').
-                            </p>
-                          ) : (
-                            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 pl-3">
-                              {engagedCandidates.map(user => (
-                                <div 
-                                  key={user.id}
-                                  className="rounded-2xl border border-dark-800 bg-dark-900 p-5 flex flex-col justify-between gap-3 hover:border-brand-500/10 transition-colors shadow-glass"
-                                >
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <h4 className="font-sans font-bold text-white text-sm truncate max-w-[150px]">
-                                        {user.name || 'N/A'}
-                                      </h4>
-                                      <span className="text-[10px] text-slate-505 font-mono select-all">
-                                        Emp ID: {user.employee_id || 'N/A'}
-                                      </span>
-                                    </div>
-                                    
-                                    <div className="space-y-1 text-xs text-slate-400">
-                                      <div>
-                                        <span className="font-semibold text-slate-500">Team: </span>
-                                        <span className="text-slate-205">{user.teamName}</span>
-                                      </div>
-                                      <div>
-                                        <span className="font-semibold text-slate-500">Category: </span>
-                                        <span className="text-brand-400 font-medium">{user.teamCategory}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="pt-2.5 border-t border-dark-800/40 text-[11px] text-slate-550 font-mono truncate select-all">
-                                    {user.email}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                    {/* Non-Engaged Candidates List */}
-                    <div className="space-y-4 pt-4 border-t border-dark-800/40">
-                      <button
-                        onClick={() => setIsNonEngagedCollapsed(!isNonEngagedCollapsed)}
-                        className="flex items-center justify-between w-full text-left py-2 px-3 rounded-xl hover:bg-dark-900 border border-transparent hover:border-dark-800 transition"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-                          <h3 className="text-lg font-bold text-white">
-                            Non-Engaged Candidates ({nonEngagedCandidates.length})
-                          </h3>
-                        </div>
-                        {isNonEngagedCollapsed ? (
-                          <ChevronRight className="h-5 w-5 text-slate-500" />
-                        ) : (
-                          <ChevronDown className="h-5 w-5 text-slate-500" />
-                        )}
-                      </button>
-                      
-                      {!isNonEngagedCollapsed && (
-                        <>
-                          {nonEngagedCandidates.length === 0 ? (
-                            <p className="text-xs text-slate-505 italic py-2 pl-3">
-                              No non-engaged candidates found. (Candidates who belong only to teams categorized as 'general' and no other teams).
-                            </p>
-                          ) : (
-                            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-3 pl-3">
-                              {nonEngagedCandidates.map(user => (
-                                <div 
-                                  key={user.id}
-                                  className="rounded-2xl border border-dark-850 bg-dark-900 p-5 flex flex-col justify-between gap-3 hover:border-brand-500/10 transition-colors shadow-glass border-l-4 border-l-amber-500/60"
-                                >
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <h4 className="font-sans font-bold text-white text-sm truncate max-w-[150px]">
-                                        {user.name || 'N/A'}
-                                      </h4>
-                                      <span className="text-[10px] text-slate-500 font-mono select-all">
-                                        Emp ID: {user.employee_id || 'N/A'}
-                                      </span>
-                                    </div>
-                                    
-                                    <div className="space-y-1 text-xs text-slate-400">
-                                      <div>
-                                        <span className="font-semibold text-slate-500">Team: </span>
-                                        <span className="text-slate-200">{user.teamName}</span>
-                                      </div>
-                                      <div>
-                                        <span className="font-semibold text-slate-500">Category: </span>
-                                        <span className="text-amber-400 font-medium">{user.teamCategory}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="pt-2.5 border-t border-dark-800/40 text-[11px] text-slate-500 font-mono truncate select-all">
-                                    {user.email}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                  </div>
-                )}
-              </div>
+              <OverviewTab
+                engagedCandidates={engagedCandidates}
+                nonEngagedCandidates={nonEngagedCandidates}
+                overviewLoading={overviewLoading}
+                isEngagedCollapsed={isEngagedCollapsed}
+                onToggleEngagedCollapsed={() => setIsEngagedCollapsed(!isEngagedCollapsed)}
+                isNonEngagedCollapsed={isNonEngagedCollapsed}
+                onToggleNonEngagedCollapsed={() => setIsNonEngagedCollapsed(!isNonEngagedCollapsed)}
+              />
             )}
 
-            {/* Active Tab: Leaves (Lead Admin only) */}
             {activeTab === 'leaves' && !isSupervisor && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between border-b border-dark-800 pb-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      <Calendar className="h-5 w-5 text-brand-400" />
-                      Reported Leaves
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Leave, WFO exception, and holiday reports from members across your Build Team's workspaces.
-                    </p>
-                  </div>
-                  <div className="text-xs text-slate-450 bg-dark-900 border border-dark-800 px-3 py-1.5 rounded-xl font-bold shrink-0">
-                    Total: {groupedLeavesList.length}
-                  </div>
-                </div>
-
-                {leavesLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Loader className="h-8 w-8 text-brand-500 animate-spin" />
-                  </div>
-                ) : groupedLeavesList.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8 bg-dark-900/30">
-                    <Calendar className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-base font-bold text-white mb-1">No Leaves Reported</h3>
-                    <p className="text-sm text-slate-550">
-                      When members report a leave, WFO exception, or holiday, it will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                    {groupedLeavesList.map((leave) => {
-                      const { type, leaveId, reason } = parseLeaveInfo(leave.description)
-                      const formattedFrom = leave.fromDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                      const formattedTo = leave.toDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                      const dateDisplay = formattedFrom === formattedTo ? formattedFrom : `${formattedFrom} - ${formattedTo}`
-                      const typeStyles = {
-                        'LEAVE': 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-                        'WFO EXCEPTION': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-                        'HOLIDAY': 'bg-brand-500/10 text-brand-400 border-brand-500/20'
-                      }
-                      const typeStyle = typeStyles[type.toUpperCase()] || 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-
-                      return (
-                        <div
-                          key={leave.key}
-                          className="rounded-2xl border border-dark-800 bg-dark-900 p-5 flex flex-col gap-3 hover:border-brand-500/10 transition-colors shadow-glass"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <h4 className="font-sans font-bold text-white text-sm truncate">
-                                {leave.user?.name || leave.user?.email || 'Unknown Member'}
-                              </h4>
-                              <span className="text-[10px] text-slate-505 font-mono select-all">{leave.user?.email}</span>
-                            </div>
-                            <span className={`px-2 py-0.5 text-[9px] uppercase font-bold tracking-wide rounded border shrink-0 ${typeStyle}`}>
-                              {type}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-400">
-                            <span className="flex items-center gap-1.5">
-                              <Briefcase className="h-3.5 w-3.5 text-brand-400" />
-                              {leave.team?.name || 'N/A'}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <Calendar className="h-3.5 w-3.5 text-brand-400" />
-                              {dateDisplay}
-                            </span>
-                            {leaveId && (
-                              <span className="text-slate-500 font-mono text-[11px]">ID: {leaveId}</span>
-                            )}
-                          </div>
-
-                          <p className="text-xs text-slate-400 leading-relaxed bg-dark-950/40 border border-dark-850/40 p-2.5 rounded-lg">
-                            {reason || 'No reason provided.'}
-                          </p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+              <LeavesTab groupedLeaves={groupedLeavesList} leavesLoading={leavesLoading} />
             )}
 
-            {/* Active Tab: Alerts (Lead Admin only, gated by notifications_access) */}
             {activeTab === 'alerts' && !isSupervisor && profile?.notifications_access === true && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between border-b border-dark-800 pb-4 flex-wrap gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                      <BellRing className="h-5 w-5 text-brand-400" />
-                      Missed Progress Alerts
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Weekdays where a member neither logged task activity nor applied leave, across your Build Team.
-                    </p>
-                  </div>
-                  <div className="text-xs text-slate-450 bg-dark-900 border border-dark-800 px-3 py-1.5 rounded-xl font-bold shrink-0">
-                    Total: {filteredAlerts.length}
-                  </div>
-                </div>
-
-                {/* Filters row */}
-                <div className="flex flex-wrap items-end gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">From</label>
-                    <input
-                      type="date"
-                      value={alertsDateFrom}
-                      onChange={(e) => setAlertsDateFrom(e.target.value)}
-                      max={alertsDateTo}
-                      className="rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">To</label>
-                    <input
-                      type="date"
-                      value={alertsDateTo}
-                      onChange={(e) => setAlertsDateTo(e.target.value)}
-                      min={alertsDateFrom}
-                      max={toDateKey(new Date(Date.now() - 86400000))}
-                      className="rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Member</label>
-                    <select
-                      value={alertsMemberFilter}
-                      onChange={(e) => setAlertsMemberFilter(e.target.value)}
-                      className="rounded-lg border border-dark-700 bg-dark-950 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none min-w-[180px]"
-                    >
-                      <option value="all">All Members</option>
-                      {alertsMembers.map((m) => (
-                        <option key={m.id} value={m.id}>{m.name || m.email}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {alertsLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Loader className="h-8 w-8 text-brand-500 animate-spin" />
-                  </div>
-                ) : filteredAlerts.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-dark-800 p-12 text-center max-w-md mx-auto mt-8 bg-dark-900/30">
-                    <BellRing className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                    <h3 className="text-base font-bold text-white mb-1">No Missed Progress</h3>
-                    <p className="text-sm text-slate-550">
-                      No members missed logging progress in the selected date range.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                    {filteredAlerts.map((alert) => (
-                      <div
-                        key={alert.id}
-                        className="rounded-2xl border border-dark-800 bg-dark-900 p-5 flex flex-col gap-2 hover:border-rose-500/20 transition-colors shadow-glass"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="font-sans font-bold text-white text-sm truncate">{alert.memberName}</h4>
-                          <span className="px-2 py-0.5 text-[9px] uppercase font-bold tracking-wide rounded border shrink-0 bg-rose-500/10 text-rose-400 border-rose-500/20">
-                            Missed
-                          </span>
-                        </div>
-                        <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                          <Calendar className="h-3.5 w-3.5 text-brand-400" />
-                          {alert.dateObj.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <AlertsTab
+                filteredAlerts={filteredAlerts}
+                alertsLoading={alertsLoading}
+                alertsMembers={alertsMembers}
+                alertsDateFrom={alertsDateFrom}
+                onAlertsDateFromChange={setAlertsDateFrom}
+                alertsDateTo={alertsDateTo}
+                onAlertsDateToChange={setAlertsDateTo}
+                alertsMemberFilter={alertsMemberFilter}
+                onAlertsMemberFilterChange={setAlertsMemberFilter}
+              />
             )}
           </>
         )}
@@ -2532,289 +1292,17 @@ export const AdminDashboard = () => {
       />
 
       {/* Edit Profile Modal */}
-      {isEditModalOpen && editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div 
-            className="fixed inset-0 bg-dark-950/80 backdrop-blur-sm" 
-            onClick={() => {
-              setIsEditModalOpen(false)
-              setEditingUser(null)
-            }}
-          />
-          <div className="relative z-10 w-full max-w-lg transform overflow-hidden rounded-2xl border border-dark-800 bg-dark-900 p-6 shadow-2xl transition-all max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-dark-800 pb-3 mb-4">
-              <h3 className="font-sans text-lg font-bold text-white flex items-center gap-2">
-                Edit User Profile
-              </h3>
-              <button 
-                onClick={() => {
-                  setIsEditModalOpen(false)
-                  setEditingUser(null)
-                }}
-                className="rounded-lg p-1 text-slate-400 hover:bg-dark-800 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Assign Role
-                </label>
-                <select
-                  value={editRole}
-                  onChange={(e) => setEditRole(e.target.value)}
-                  className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
-                >
-                  <option value="member">Team Member</option>
-                  <option value="admin">Lead Admin</option>
-                  {isSupervisor && (
-                    <option value="supervisor">Supervisor</option>
-                  )}
-                </select>
-              </div>
-
-              {/* Individual Category (Admin & Supervisor only — this modal itself is unreachable by members) */}
-              {(profile?.role === 'admin' || profile?.role === 'supervisor') && (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Individual Category
-                  </label>
-                  <select
-                    value={editIndividualCategory}
-                    onChange={(e) => setEditIndividualCategory(e.target.value)}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
-                  >
-                    {INDIVIDUAL_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Employee ID
-                  </label>
-                  <input
-                    type="text"
-                    value={editEmployeeId}
-                    onChange={(e) => setEditEmployeeId(e.target.value)}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Work Location
-                  </label>
-                  <input
-                    type="text"
-                    value={editWorkLocation}
-                    onChange={(e) => setEditWorkLocation(e.target.value)}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
-                    placeholder="eg. Hyderabad - Synergy park"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Phone Number
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={editPhoneRegion}
-                    onChange={(e) => {
-                      setEditPhoneRegion(e.target.value)
-                      setEditPhoneNo('')
-                    }}
-                    className="rounded-lg border border-dark-700 bg-dark-950 px-3 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm w-24"
-                  >
-                    {REGIONS.map((r) => (
-                      <option key={r.code} value={r.code} className="bg-dark-900 text-white">
-                        {r.code}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="tel"
-                    value={editPhoneNo}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '')
-                      const currentRegion = REGIONS.find(r => r.code === editPhoneRegion)
-                      if (val.length <= (currentRegion?.digits || 15)) {
-                        setEditPhoneNo(val)
-                      }
-                    }}
-                    placeholder={REGIONS.find(r => r.code === editPhoneRegion)?.placeholder || 'Phone number'}
-                    className="flex-1 rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Rapid Build Joining Date
-                </label>
-                <input
-                  type="date"
-                  value={editRapidJoiningDate}
-                  onChange={(e) => setEditRapidJoiningDate(e.target.value)}
-                  className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm"
-                />
-              </div>
-
-              {/* Skill Level Selection (Supervisors only, admins/members read-only) */}
-              {profile?.role === 'supervisor' && editRole !== 'supervisor' ? (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Skill Level
-                  </label>
-                  <select
-                    value={editSkillLevel}
-                    onChange={(e) => setEditSkillLevel(e.target.value)}
-                    className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none text-sm capitalize"
-                  >
-                    <option value="foundation">Foundation</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Skill Level (Read Only)
-                  </label>
-                  <div className="w-full rounded-lg border border-dark-800 bg-dark-950/50 px-4 py-2.5 text-slate-400 text-sm capitalize select-none">
-                    {editRole === 'supervisor' ? 'management' : editSkillLevel}
-                  </div>
-                </div>
-              )}
-
-              {/* Notifications Feature Access (Supervisors granting access to Lead Admins only) */}
-              {profile?.role === 'supervisor' && editRole === 'admin' && (
-                <div className="flex items-center justify-between rounded-lg border border-dark-700 bg-dark-950 px-4 py-3">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
-                      Notifications Access
-                    </label>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Lets this admin see missed-progress alerts for members in their Build Team.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditNotificationsAccess(!editNotificationsAccess)}
-                    className={`relative shrink-0 h-6 w-11 rounded-full transition-colors ${
-                      editNotificationsAccess ? 'bg-brand-500' : 'bg-dark-700'
-                    }`}
-                    title={editNotificationsAccess ? 'Disable notifications access' : 'Enable notifications access'}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                        editNotificationsAccess ? 'translate-x-5' : 'translate-x-0.5'
-                      }`}
-                    />
-                  </button>
-                </div>
-              )}
-
-              {/* Edit Skills tags search and select */}
-              <div className="relative">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Skills Set
-                </label>
-                <input
-                  type="text"
-                  value={skillsInput}
-                  onChange={(e) => {
-                    setSkillsInput(e.target.value)
-                    setIsSkillsDropdownOpen(true)
-                  }}
-                  onFocus={() => setIsSkillsDropdownOpen(true)}
-                  className="w-full rounded-lg border border-dark-700 bg-dark-950 px-4 py-2 text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none text-sm"
-                  placeholder="Search and select skills..."
-                />
-                
-                {isSkillsDropdownOpen && skillsInput && (
-                  <div className="absolute z-30 mt-1 max-h-40 w-full overflow-y-auto rounded-xl border border-dark-700 bg-dark-900 p-2 shadow-xl">
-                    {PREDEFINED_SKILLS.filter(s => s.toLowerCase().includes(skillsInput.toLowerCase()) && !editSkills.includes(s)).length === 0 ? (
-                      <p className="text-xs text-slate-505 p-2">No matching skills found.</p>
-                    ) : (
-                      PREDEFINED_SKILLS.filter(s => s.toLowerCase().includes(skillsInput.toLowerCase()) && !editSkills.includes(s)).map(skill => (
-                        <button
-                          key={skill}
-                          type="button"
-                          onClick={() => handleAddSkill(skill)}
-                          className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-xs text-slate-200 hover:bg-dark-800 transition"
-                        >
-                          {skill}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-
-                {editSkills.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2.5 p-2 rounded-xl border border-dark-800 bg-dark-950/40 max-h-24 overflow-y-auto">
-                    {editSkills.map(skill => (
-                      <span 
-                        key={skill}
-                        className="inline-flex items-center gap-1 rounded bg-brand-500/10 border border-brand-500/25 px-2 py-0.5 text-xs text-brand-400"
-                      >
-                        {skill}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSkill(skill)}
-                          className="text-slate-400 hover:text-rose-400"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-dark-800">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditModalOpen(false)
-                    setEditingUser(null)
-                  }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg bg-dark-800 text-slate-350 hover:bg-dark-750"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-sm font-semibold rounded-lg bg-brand-500 text-white hover:bg-brand-650 transition"
-                >
-                  Save Profile
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <EditProfileModal
+        isOpen={isEditModalOpen}
+        user={editingUser}
+        profile={profile}
+        isSupervisor={isSupervisor}
+        onClose={() => {
+          setIsEditModalOpen(false)
+          setEditingUser(null)
+        }}
+        onSaved={triggerSearchQuery}
+      />
     </div>
   )
 }

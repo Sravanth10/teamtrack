@@ -2,15 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { X, ChevronLeft, ChevronRight, Loader, CalendarCheck } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../hooks/useAuth'
+import { toDateKey } from '../lib/utils'
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-const toDateKey = (date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
 
 export const ActivityCalendar = ({ isOpen, onClose }) => {
   const { profile } = useAuth()
