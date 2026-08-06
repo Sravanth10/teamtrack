@@ -6,7 +6,8 @@ import Navbar from '../components/Navbar'
 import {
   FlaskConical, Plus, ArrowRight, Users, LayoutGrid,
   CheckCircle2, Loader, X, AlertCircle, Building2, ShieldCheck,
-  UserPlus, Trash2, Search, UserMinus, BarChart3, Lightbulb, Filter, Target
+  UserPlus, Trash2, Search, UserMinus, BarChart3, Lightbulb, Filter, Target,
+  RefreshCw
 } from 'lucide-react'
 import swiftLogo from '../assets/swift_logo.png'
 import strideLogo from '../assets/stride_logo.png'
@@ -23,43 +24,59 @@ const SKILL_LEVEL_BAR_COLOR = {
   'Unspecified': 'bg-slate-700'
 }
 
-// ── KPIs tab (static preview data for now) ──────────────────────────────────
-// TODO: replace with live-computed values once the calculation logic is defined.
-// Only showing the months with data through Jun-26 per current request.
+// ── KPIs tab ─────────────────────────────────────────────────────────────────
+// Mar-26 through Jun-26 predate live calculation and stay hardcoded here.
+// Jul-26 onward is computed from employee_skills_data and stored in
+// department_kpi_snapshots (see migration 026) via the "Calculate Current
+// KPI" button below; each row's `field` matches that table's pct_* columns
+// so hardcoded and DB-backed columns render through the same code path.
 const KPI_MONTHS = ['Mar-26', 'Apr-26', 'May-26', 'Jun-26']
 const KPI_DEPARTMENT_COUNTS = [44, 43, 72, 74]
 const KPI_ROWS = [
   {
+    field: 'pct_billability',
     kpi: '% Billability (Customer Engagements)',
     definition: 'Total number of allocation days on WON/ (Total WON+ SWON days of allocation)',
     values: [32, 32, 19, 24]
   },
   {
+    field: 'pct_gtm',
     kpi: '% on GTM Rapid Prototype',
     definition: 'Total number of allocation days spent on actual Prototypes/ (Total WON+ SWON days of allocation)',
     values: [14, 12, 14, 13]
   },
   {
+    field: 'pct_core',
     kpi: '% Core Team',
     definition: 'Team / (Total WON+ SWON days of allocation)',
     values: [16, 14, 10, 13]
   },
   {
+    field: 'pct_future_ready',
     kpi: '% Future Ready',
     definition: 'Total number of allocation in Future Ready state / (Total WON+ SWON days of allocation)',
     values: [20, 26, 26, 23]
   },
   {
+    field: 'pct_moving_future_ready',
     kpi: '% moving to Future Ready',
     definition: 'Total number of allocation days on Training / (Total WON+ SWON days of allocation)',
     values: [9, 16, 31, 27]
   },
   {
+    field: 'pct_ce',
     kpi: '% on CE',
     definition: 'Total number of allocation days on CE / (Total WON+ SWON days of allocation)',
     values: [10, 0, 0, 0]
   }
 ]
+
+// Formats a 'YYYY-MM-DD' date string as 'DD-Mon', e.g. '06-Aug'
+const formatAsOfDate = (dateStr) => {
+  if (!dateStr) return ''
+  const d = new Date(`${dateStr}T00:00:00`)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).replace(' ', '-')
+}
 
 const SupervisorDashboard = () => {
   const { profile } = useAuth()
@@ -103,6 +120,13 @@ const SupervisorDashboard = () => {
   const [skillsError, setSkillsError] = useState(null)
   const [skillsLoaded, setSkillsLoaded] = useState(false)
   const [selectedLabFilter, setSelectedLabFilter] = useState('all')
+
+  // KPIs tab states (Jul-26 onward, DB-backed — see department_kpi_snapshots)
+  const [kpiSnapshots, setKpiSnapshots] = useState([])
+  const [kpiLoading, setKpiLoading] = useState(false)
+  const [kpiError, setKpiError] = useState(null)
+  const [kpiLoaded, setKpiLoaded] = useState(false)
+  const [calculatingKpi, setCalculatingKpi] = useState(false)
 
   const triggerLogoUpload = (labId) => {
     uploadingLabIdRef.current = labId
@@ -228,6 +252,83 @@ const SupervisorDashboard = () => {
       setSkillsLoading(false)
     }
   }, [])
+
+  // ── KPIs ─────────────────────────────────────────────────────────────────────
+  // On every load, lazily freeze any past month's live snapshot that rolled over
+  // without anyone clicking "Calculate" during that month (there's no cron in
+  // this project — freezing happens as a side effect of normal page visits).
+  const fetchKpiSnapshots = useCallback(async () => {
+    setKpiLoading(true)
+    setKpiError(null)
+    try {
+      const currentMonthKey = new Date().toISOString().slice(0, 7)
+      const { error: freezeErr } = await supabase.rpc('freeze_past_kpi_months', { current_month_key: currentMonthKey })
+      if (freezeErr) throw freezeErr
+
+      const { data, error: fetchErr } = await supabase
+        .from('department_kpi_snapshots')
+        .select('*')
+        .order('month_key', { ascending: true })
+
+      if (fetchErr) throw fetchErr
+      setKpiSnapshots(data || [])
+      setKpiLoaded(true)
+    } catch (err) {
+      setKpiError(err.message)
+    } finally {
+      setKpiLoading(false)
+    }
+  }, [])
+
+  const handleCalculateKpi = async () => {
+    setCalculatingKpi(true)
+    setKpiError(null)
+    try {
+      const { error: calcErr } = await supabase.rpc('calculate_department_kpi')
+      if (calcErr) throw calcErr
+
+      const { data, error: fetchErr } = await supabase
+        .from('department_kpi_snapshots')
+        .select('*')
+        .order('month_key', { ascending: true })
+
+      if (fetchErr) throw fetchErr
+      setKpiSnapshots(data || [])
+    } catch (err) {
+      setKpiError(err.message)
+    } finally {
+      setCalculatingKpi(false)
+    }
+  }
+
+  // Merge the hardcoded Mar-Jun columns with the DB-backed Jul-26+ columns into
+  // one column list so the table below renders both through the same markup.
+  const kpiColumns = [
+    ...KPI_MONTHS.map((label, idx) => ({
+      key: `hardcoded-${label}`,
+      label,
+      isLive: false,
+      totalCount: KPI_DEPARTMENT_COUNTS[idx],
+      values: KPI_ROWS.reduce((acc, row) => {
+        acc[row.field] = row.values[idx]
+        return acc
+      }, {})
+    })),
+    ...kpiSnapshots.map((s) => ({
+      key: s.month_key,
+      label: s.is_frozen ? s.month_label : `${s.month_label} (as of ${formatAsOfDate(s.as_of_date)})`,
+      isLive: !s.is_frozen,
+      totalCount: s.total_department_count,
+      values: {
+        pct_billability: s.pct_billability,
+        pct_gtm: s.pct_gtm,
+        pct_core: s.pct_core,
+        pct_future_ready: s.pct_future_ready,
+        pct_moving_future_ready: s.pct_moving_future_ready,
+        pct_ce: s.pct_ce
+      }
+    }))
+  ]
 
   // ── Create Lab ──────────────────────────────────────────────────────────────
   const handleCreateLab = async () => {
@@ -511,7 +612,10 @@ const SupervisorDashboard = () => {
             Skill Distribution
           </button>
           <button
-            onClick={() => setActiveTab('kpis')}
+            onClick={() => {
+              setActiveTab('kpis')
+              if (!kpiLoaded) fetchKpiSnapshots()
+            }}
             className={`px-6 py-3.5 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
               activeTab === 'kpis'
                 ? 'border-brand-500 text-white'
@@ -747,57 +851,84 @@ const SupervisorDashboard = () => {
         {/* Active Tab: KPIs */}
         {activeTab === 'kpis' && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Target className="h-5 w-5 text-brand-400" />
-                Department KPIs
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Monthly allocation KPIs across all build teams, Mar-26 through Jun-26.
-              </p>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Target className="h-5 w-5 text-brand-400" />
+                  Department KPIs
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Monthly allocation KPIs across all build teams, Mar-26 onward.
+                </p>
+              </div>
+
+              <button
+                onClick={handleCalculateKpi}
+                disabled={calculatingKpi || kpiLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-650 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`h-4 w-4 ${calculatingKpi ? 'animate-spin' : ''}`} />
+                {calculatingKpi ? 'Calculating...' : 'Calculate Current KPI'}
+              </button>
             </div>
 
-            <div className="rounded-2xl border border-dark-800 bg-dark-900 shadow-glass overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-dark-800 bg-dark-950/60">
-                      <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[220px]">KPI</th>
-                      <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[320px]">Definition</th>
-                      {KPI_MONTHS.map((month) => (
-                        <th key={month} className="text-center px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
-                          {month}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-dark-800">
-                    {/* Total Department Count — the top row */}
-                    <tr className="bg-brand-500/5">
-                      <td className="px-4 py-3 text-sm font-bold text-white align-top">Total Department Count</td>
-                      <td className="px-4 py-3 text-xs text-slate-500 italic align-top">Total headcount for the month</td>
-                      {KPI_DEPARTMENT_COUNTS.map((count, idx) => (
-                        <td key={idx} className="px-4 py-3 text-center text-sm font-extrabold text-brand-400 tabular-nums">
-                          {count}
-                        </td>
-                      ))}
-                    </tr>
+            {kpiError && (
+              <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {kpiError}
+              </div>
+            )}
 
-                    {KPI_ROWS.map((row) => (
-                      <tr key={row.kpi} className="hover:bg-dark-800/40 transition-colors">
-                        <td className="px-4 py-3 text-sm font-semibold text-slate-200 align-top">{row.kpi}</td>
-                        <td className="px-4 py-3 text-xs text-slate-400 leading-relaxed align-top">{row.definition}</td>
-                        {row.values.map((val, idx) => (
-                          <td key={idx} className="px-4 py-3 text-center text-sm font-bold text-white tabular-nums">
-                            {val}%
+            {kpiLoading ? (
+              <div className="flex justify-center items-center py-24">
+                <Loader className="h-8 w-8 text-brand-500 animate-spin" />
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dark-800 bg-dark-900 shadow-glass overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-dark-800 bg-dark-950/60">
+                        <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[220px]">KPI</th>
+                        <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 min-w-[320px]">Definition</th>
+                        {kpiColumns.map((col) => (
+                          <th key={col.key} className="text-center px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+                            {col.label}
+                            {col.isLive && (
+                              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-400" title="Live snapshot, not yet frozen" />
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-dark-800">
+                      {/* Total Department Count — the top row */}
+                      <tr className="bg-brand-500/5">
+                        <td className="px-4 py-3 text-sm font-bold text-white align-top">Total Department Count</td>
+                        <td className="px-4 py-3 text-xs text-slate-500 italic align-top">Total headcount for the month</td>
+                        {kpiColumns.map((col) => (
+                          <td key={col.key} className="px-4 py-3 text-center text-sm font-extrabold text-brand-400 tabular-nums">
+                            {col.totalCount}
                           </td>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+                      {KPI_ROWS.map((row) => (
+                        <tr key={row.kpi} className="hover:bg-dark-800/40 transition-colors">
+                          <td className="px-4 py-3 text-sm font-semibold text-slate-200 align-top">{row.kpi}</td>
+                          <td className="px-4 py-3 text-xs text-slate-400 leading-relaxed align-top">{row.definition}</td>
+                          {kpiColumns.map((col) => (
+                            <td key={col.key} className="px-4 py-3 text-center text-sm font-bold text-white tabular-nums">
+                              {col.values[row.field]}%
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </main>
