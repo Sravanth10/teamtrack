@@ -110,6 +110,15 @@ export const AuthProvider = ({ children }) => {
       async (event, session) => {
         if (!isMounted) return
 
+        // PASSWORD_RECOVERY is handled locally in ResetPassword.jsx.
+        // We still store the user so supabase.auth.updateUser() has a valid
+        // session to work with, but we skip profile fetching and do NOT
+        // touch the global loading state — avoids racing with getSession().
+        if (event === 'PASSWORD_RECOVERY') {
+          setUser(session?.user ?? null)
+          return
+        }
+
         if (session) {
           setUser(session.user)
           const prof = await fetchProfile(session.user.id)

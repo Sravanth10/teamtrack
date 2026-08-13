@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { useAuth } from '../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
-import { Compass, Key, ShieldAlert, Loader, Eye, EyeOff, CheckCircle2, Sun, Moon } from 'lucide-react'
+import { supabase } from '../lib/supabaseClient'
+import { Compass, Key, ShieldAlert, Loader, Eye, EyeOff, CheckCircle2, Sun, Moon, AlertTriangle } from 'lucide-react'
 
 export const ResetPassword = () => {
-  const { updatePassword, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
 
   const [password, setPassword] = useState('')
@@ -12,10 +11,15 @@ export const ResetPassword = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
-  
+
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark')
+
+  // Whether a valid PASSWORD_RECOVERY session has been confirmed
+  const [isRecoverySession, setIsRecoverySession] = useState(false)
+  // Whether we have finished determining session validity (show spinner until true)
+  const [sessionChecked, setSessionChecked] = useState(false)
 
   const toggleTheme = () => {
     const newTheme = theme === 'dark' ? 'light' : 'dark'
@@ -28,13 +32,43 @@ export const ResetPassword = () => {
     }
   }
 
-  // Redirect to home if user session does not exist (meaning they didn't access via email link or aren't logged in)
   useEffect(() => {
-    if (!authLoading && !user) {
-      // Note: Supabase onAuthStateChange will capture the recovery link session.
-      // If it hasn't loaded yet or user clicked without a token, we alert them.
+    let recoveryEventReceived = false
+
+    // Primary: Supabase automatically fires PASSWORD_RECOVERY when the page
+    // loads with a valid #access_token=...&type=recovery hash in the URL.
+    // Catching it here (not in AuthContext) avoids any race with getSession().
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        recoveryEventReceived = true
+        setIsRecoverySession(true)
+        setSessionChecked(true)
+      }
+    })
+
+    // Fallback: if the PASSWORD_RECOVERY event fired before this component
+    // mounted (rare, but possible on very fast machines), check for an
+    // already-active session and allow the form.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!recoveryEventReceived) {
+        if (session) {
+          setIsRecoverySession(true)
+        }
+        setSessionChecked(true)
+      }
+    })
+
+    // Safety net: if nothing responds in 5 s (e.g. network error),
+    // mark as checked so we show "invalid link" instead of an infinite spinner.
+    const timeout = setTimeout(() => {
+      setSessionChecked(true)
+    }, 5000)
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
     }
-  }, [user, authLoading])
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -59,22 +93,78 @@ export const ResetPassword = () => {
     setLoading(true)
 
     try {
-      const res = await updatePassword(password)
-      if (!res.success) {
-        throw new Error(res.error)
-      }
-      
-      setSuccess('Your password has been successfully reset! Redirecting to dashboard...')
+      // Call supabase directly — the PASSWORD_RECOVERY session captured by
+      // onAuthStateChange above lives in the Supabase client's internal store,
+      // so this call succeeds even if AuthContext's global state is behind.
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) throw updateError
+
+      setSuccess('Your password has been successfully reset! Redirecting to login...')
       setTimeout(() => {
-        navigate('/')
+        navigate('/login')
       }, 3000)
     } catch (err) {
-      setError(err.message || 'Failed to update password. Make sure the reset link is valid.')
+      setError(err.message || 'Failed to update password. The reset link may have expired.')
     } finally {
       setLoading(false)
     }
   }
 
+  // ─── Loading state (waiting to confirm session) ────────────────────────────
+  if (!sessionChecked) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-dark-950 px-4">
+        <div className="flex flex-col items-center gap-4">
+          <Loader className="h-8 w-8 animate-spin text-brand-400" />
+          <p className="text-sm text-slate-400">Verifying your reset link…</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Invalid / expired link ────────────────────────────────────────────────
+  if (sessionChecked && !isRecoverySession) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-dark-950 px-4 py-12 sm:px-6 lg:px-8">
+        {/* Decorative Blur Orbs */}
+        <div className="absolute top-1/4 left-1/4 h-[300px] w-[300px] rounded-full bg-rose-500/10 blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 h-[300px] w-[300px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none" />
+
+        <div className="relative z-10 w-full max-w-md space-y-6 rounded-2xl border border-dark-800 bg-dark-900/60 p-8 shadow-2xl backdrop-blur-xl text-center">
+          <div className="flex justify-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/10 border border-rose-500/20">
+              <AlertTriangle className="h-7 w-7 text-rose-400" />
+            </div>
+          </div>
+          <div>
+            <h2 className="font-sans text-2xl font-extrabold tracking-tight text-white">
+              Link Invalid or Expired
+            </h2>
+            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
+              This password reset link has either already been used, has expired, or is invalid.
+              Reset links are single-use and expire after <span className="text-white font-semibold">1 hour</span>.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full rounded-xl bg-brand-500 py-3 text-sm font-semibold text-white shadow-glow-brand transition-all duration-200 hover:bg-brand-650 focus:outline-none"
+            >
+              Request a New Reset Link
+            </button>
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full rounded-xl border border-dark-700 py-3 text-sm font-semibold text-slate-400 transition-all duration-200 hover:text-white hover:border-dark-500 focus:outline-none"
+            >
+              Back to Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Valid recovery session — show the reset form ──────────────────────────
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-dark-950 px-4 py-12 sm:px-6 lg:px-8">
       {/* Floating Theme Toggle */}
@@ -95,7 +185,7 @@ export const ResetPassword = () => {
 
       {/* Card */}
       <div className="relative z-10 w-full max-w-md space-y-8 rounded-2xl border border-dark-800 bg-dark-900/60 p-8 shadow-2xl backdrop-blur-xl">
-        
+
         {/* Brand Logo and Header */}
         <div className="flex flex-col items-center text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand-600 to-brand-400 text-white shadow-glow-brand mb-4">
@@ -127,7 +217,7 @@ export const ResetPassword = () => {
         {/* Form */}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4 rounded-md">
-            
+
             {/* New Password */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
